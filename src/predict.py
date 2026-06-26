@@ -240,6 +240,13 @@ def run_inference(video_path, weights_path=YOLO_WEIGHTS):
     except Exception as e:
         print(f"[Inference] DMS katmani atlandi: {e}")
 
+    # --- sigara_icme (fine-tune YOLOv8n; izole) ---
+    try:
+        from src.sigara import sigara_tespit
+        tespitler.extend(sigara_tespit(video_path))
+    except Exception as e:
+        print(f"[Inference] sigara katmani atlandi: {e}")
+
     # Mukerrer (kategori, etiket) tespitlerini birlestir (precision)
     tespitler = tespit_dedup(tespitler)
     return {"video_id": video_id, "arac_bilgisi": arac_bilgisi, "tespitler": tespitler}

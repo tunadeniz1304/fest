@@ -100,6 +100,9 @@ if __name__ == "__main__":
     indir_yolo()
     indir_easyocr()
     indir_yolo_world()
+    # NOT: weights/sigara.pt ayri bir fine-tune scriptiyle uretilir:
+    #   python scripts/train_sigara.py  (driver_smoking veri seti, CC BY 4.0)
+    # Egitilmis agirlik bu repo disinda; reproducibility icin egitim scripti dahil.
     print("\nTUM AGIRLIKLAR HAZIR. weights/ icerigi:")
     for kok, _, fs in os.walk(WEIGHTS):
         for f in fs:
