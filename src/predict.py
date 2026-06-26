@@ -230,6 +230,13 @@ def run_inference(video_path, weights_path=YOLO_WEIGHTS):
     except Exception as e:
         print(f"[Inference] teknocan katmani atlandi: {e}")
 
+    # --- INOVASYON: DMS surucu davranisi (MediaPipe; izole) ---
+    try:
+        from src.dms import dms_tespit
+        tespitler.extend(dms_tespit(video_path))
+    except Exception as e:
+        print(f"[Inference] DMS katmani atlandi: {e}")
+
     # Mukerrer (kategori, etiket) tespitlerini birlestir (precision)
     tespitler = tespit_dedup(tespitler)
     return {"video_id": video_id, "arac_bilgisi": arac_bilgisi, "tespitler": tespitler}

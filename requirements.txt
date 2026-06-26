@@ -6,6 +6,10 @@ opencv-python-headless==4.10.0.84
 easyocr==1.7.2
 numpy==1.26.4
 Pillow==10.4.0
+# DMS katmani (esneme/arkaya_bakma/etrafa_bakinma) - MediaPipe Face Mesh.
+# 0.10.14: solutions API + modeller pakette gomulu (offline). Yeni surumlerde
+# solutions kaldirildi ve tasks API harici .task indirme ister -> offline riski.
+mediapipe==0.10.14
 # YOLO-World (teknocan open-vocab) set_classes() icin CLIP gerekir; runtime'da
 # internet kapali oldugundan build asamasinda kurulmali.
 git+https://github.com/ultralytics/CLIP.git
