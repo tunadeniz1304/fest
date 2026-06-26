@@ -26,7 +26,10 @@ from src.labels import esik_al
 from src.aggregate import cogunluk_oyu, plaka_karakter_oylama, eylem_karari
 from src.utils import baskin_renk, arac_tipi_heuristik, plaka_normalize
 
-WEIGHTS_DIR = "/app/weights"
+# Docker'da /app/weights; yerelde proje koku/weights. Hangisi varsa onu kullan.
+_DOCKER_W = "/app/weights"
+_LOCAL_W = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "weights")
+WEIGHTS_DIR = _DOCKER_W if os.path.isdir(_DOCKER_W) else _LOCAL_W
 YOLO_WEIGHTS = os.path.join(WEIGHTS_DIR, "best_model.pt")
 TRACKER_CFG = os.path.join(WEIGHTS_DIR, "bytetrack.yaml")
 EASYOCR_DIR = os.path.join(WEIGHTS_DIR, "easyocr")

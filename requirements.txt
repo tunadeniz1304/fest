@@ -1,6 +1,7 @@
 # Calisma aninda internet KAPALI; tum paketler build'de kurulur (pin'li).
 # torch/torchvision Dockerfile'da CUDA 12.1 index'inden ayrica kurulur.
 ultralytics==8.2.103
+lapx==0.9.4
 opencv-python-headless==4.10.0.84
 easyocr==1.7.2
 numpy==1.26.4
