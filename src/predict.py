@@ -23,7 +23,9 @@ from collections import defaultdict
 import cv2
 
 from src.labels import esik_al
-from src.aggregate import cogunluk_oyu, plaka_karakter_oylama, eylem_karari, tespit_dedup
+from src.aggregate import (
+    cogunluk_oyu, plaka_karakter_oylama, eylem_karari, tespit_dedup, slalom_var_mi,
+)
 from src.utils import baskin_renk, arac_tipi_heuristik, plaka_normalize
 
 # Docker'da /app/weights; yerelde proje koku/weights. Hangisi varsa onu kullan.
@@ -97,6 +99,8 @@ def run_inference(video_path, weights_path=YOLO_WEIGHTS):
     arac_renk = defaultdict(list)     # [(renk, conf)]
     arac_plaka = defaultdict(list)    # [(plaka, conf)]
     arac_conf = defaultdict(list)     # [conf]
+    arac_merkez_x = defaultdict(list)  # [cx] -> slalom (trajectory) icin
+    arac_ilk_zaman = {}               # tid -> ilk gorulme saniyesi
     eylem_say = defaultdict(lambda: defaultdict(int))    # tid -> {(kat,etk): frame}
     eylem_conf = defaultdict(lambda: defaultdict(list))
     eylem_zaman = defaultdict(dict)   # tid -> {(kat,etk): ilk_saniye}
@@ -137,6 +141,8 @@ def run_inference(video_path, weights_path=YOLO_WEIGHTS):
                     arac_tip[tid].append((arac_tipi_heuristik(coco_ad, (x1, y1, x2, y2)), cf))
                     arac_renk[tid].append((baskin_renk(crop), cf))
                     arac_conf[tid].append(cf)
+                    arac_merkez_x[tid].append((x1 + x2) / 2.0)
+                    arac_ilk_zaman.setdefault(tid, zaman_sn)
                     if reader is not None and crop.size > 0:
                         try:
                             for it in reader.readtext(crop, detail=1, paragraph=False):
@@ -194,6 +200,16 @@ def run_inference(video_path, weights_path=YOLO_WEIGHTS):
             tespitler.append({
                 "zaman_saniye": yolcu_zaman[tid],
                 "kategori": "yolcular", "etiket": etk, "confidence_score": conf,
+            })
+
+    # --- Slalom: arac trajectory'sinin yatay zig-zag'indan (egitimsiz) ---
+    for tid, xs in arac_merkez_x.items():
+        var, conf = slalom_var_mi(xs, frame_w)
+        if var:
+            tespitler.append({
+                "zaman_saniye": arac_ilk_zaman.get(tid, 0.0),
+                "kategori": "sofor_eylemi", "etiket": "slalom",
+                "confidence_score": conf,
             })
 
     # Mukerrer (kategori, etiket) tespitlerini birlestir (precision)

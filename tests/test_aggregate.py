@@ -1,5 +1,6 @@
 from src.aggregate import (
     cogunluk_oyu, plaka_karakter_oylama, eylem_karari, tespit_dedup,
+    slalom_var_mi,
 )
 
 
@@ -67,3 +68,22 @@ def test_tespit_dedup_farkli_etiket_korur():
         {"zaman_saniye": 2.0, "kategori": "nesneler", "etiket": "bilgisayar", "confidence_score": 0.7},
     ]
     assert len(tespit_dedup(tespitler)) == 2
+
+
+def test_slalom_zigzag_tespit_eder():
+    # Arac merkez x'i saga-sola-saga-sola salinim yapiyor (genis genlik) -> slalom
+    merkez_x = [100, 300, 110, 305, 105, 295, 115]
+    frame_genislik = 640
+    var, conf = slalom_var_mi(merkez_x, frame_genislik)
+    assert var is True
+    assert conf > 0.0
+
+
+def test_slalom_duz_gidis_eler():
+    # Arac duz gidiyor, kucuk titreme -> slalom degil
+    merkez_x = [300, 302, 301, 303, 300, 304, 301]
+    assert slalom_var_mi(merkez_x, 640) == (False, 0.0)
+
+
+def test_slalom_yetersiz_veri_eler():
+    assert slalom_var_mi([300, 305], 640) == (False, 0.0)

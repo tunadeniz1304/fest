@@ -66,6 +66,39 @@ def tespit_dedup(tespitler):
     return sorted(en_iyi.values(), key=lambda t: t["zaman_saniye"])
 
 
+def slalom_var_mi(merkez_x_listesi, frame_genislik, min_nokta=5,
+                  min_yon_degisim=3, min_genlik_oran=0.15):
+    """
+    Bir aracin track boyunca yatay (x) merkez pozisyonundan slalom (zig-zag) tespiti.
+    Deep research: UFLD lane detection yerine ByteTrack trajectory'sinden egitimsiz
+    cikarim. Yon degisimi sayisi + salinim genligi esige gore karar.
+
+    merkez_x_listesi: track boyu arac merkez x degerleri (frame sirasiyla).
+    frame_genislik: normalize icin goruntu genisligi (px).
+    Doner: (slalom_var_mi: bool, confidence: float)
+    """
+    if not merkez_x_listesi or len(merkez_x_listesi) < min_nokta or frame_genislik <= 0:
+        return (False, 0.0)
+    xs = merkez_x_listesi
+    # Yon degisimi (zig-zag) say: ardisik farklarin isaret degistirmesi
+    yon_degisim = 0
+    onceki_isaret = 0
+    for i in range(1, len(xs)):
+        fark = xs[i] - xs[i - 1]
+        isaret = (fark > 0) - (fark < 0)   # +1, 0, -1
+        if isaret != 0 and onceki_isaret != 0 and isaret != onceki_isaret:
+            yon_degisim += 1
+        if isaret != 0:
+            onceki_isaret = isaret
+    # Salinim genligi (max-min) / frame_genislik
+    genlik_oran = (max(xs) - min(xs)) / float(frame_genislik)
+    if yon_degisim >= min_yon_degisim and genlik_oran >= min_genlik_oran:
+        # Confidence: yon degisim ve genlik ne kadar belirginse o kadar yuksek
+        conf = min(1.0, 0.4 + 0.1 * yon_degisim + genlik_oran)
+        return (True, round(conf, 2))
+    return (False, 0.0)
+
+
 def eylem_karari(gorulen_frame, track_uzunlugu, ort_conf, esik_oran=0.3, min_frame=2):
     """
     Bir eylemi (telefon/sigara/su) track boyunca gorulme oranina gore raporla.
