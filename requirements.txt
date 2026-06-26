@@ -6,3 +6,6 @@ opencv-python-headless==4.10.0.84
 easyocr==1.7.2
 numpy==1.26.4
 Pillow==10.4.0
+# YOLO-World (teknocan open-vocab) set_classes() icin CLIP gerekir; runtime'da
+# internet kapali oldugundan build asamasinda kurulmali.
+git+https://github.com/ultralytics/CLIP.git

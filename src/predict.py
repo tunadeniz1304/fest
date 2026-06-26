@@ -212,6 +212,13 @@ def run_inference(video_path, weights_path=YOLO_WEIGHTS):
                 "confidence_score": conf,
             })
 
+    # --- INOVASYON: teknocan open-vocab (izole; hata ana akisi bozmaz) ---
+    try:
+        from src.openvocab import teknocan_tespit
+        tespitler.extend(teknocan_tespit(video_path))
+    except Exception as e:
+        print(f"[Inference] teknocan katmani atlandi: {e}")
+
     # Mukerrer (kategori, etiket) tespitlerini birlestir (precision)
     tespitler = tespit_dedup(tespitler)
     return {"video_id": video_id, "arac_bilgisi": arac_bilgisi, "tespitler": tespitler}

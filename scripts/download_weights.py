@@ -67,9 +67,39 @@ def indir_easyocr():
         raise RuntimeError("EasyOCR modelleri indirilemedi.")
 
 
+PROMPTLAR = ["can", "beverage can", "soda can", "tin can"]   # teknocan ~ kutu
+
+
+def indir_yolo_world():
+    """
+    YOLO-World indirir, teknocan promptlarini set_classes ile GOMER ve kaydeder.
+    Boylece runtime'da set_classes (CLIP metin kodlayici) cagrilmaz -> offline.
+    Ayrica CLIP ViT-B-32 agirligini weights/clip/'e kopyalar (offline yedek).
+    """
+    hedef = os.path.join(WEIGHTS, "yolo_world_teknocan.pt")
+    if os.path.exists(hedef):
+        print(f"[YOLOWorld] Gomulu model zaten var: {hedef}")
+        return
+    try:
+        from ultralytics import YOLOWorld
+        m = YOLOWorld("yolov8s-world.pt")   # indirir (kucuk, T4 uyumlu)
+        m.set_classes(PROMPTLAR)            # embedding'i model icine gomer
+        m.save(hedef)                       # custom-vocab model
+        print(f"[YOLOWorld] Gomulu model kaydedildi: {hedef}")
+        # CLIP agirligini offline yedek olarak weights'e kopyala
+        clip_cache = os.path.expanduser("~/.cache/clip/ViT-B-32.pt")
+        if os.path.exists(clip_cache):
+            os.makedirs(os.path.join(WEIGHTS, "clip"), exist_ok=True)
+            shutil.copy(clip_cache, os.path.join(WEIGHTS, "clip", "ViT-B-32.pt"))
+            print("[YOLOWorld] CLIP ViT-B-32 weights/clip/'e kopyalandi (offline yedek).")
+    except Exception as e:
+        print(f"[YOLOWorld] Indirilemedi (teknocan katmani opsiyonel, atlaniyor): {e}")
+
+
 if __name__ == "__main__":
     indir_yolo()
     indir_easyocr()
+    indir_yolo_world()
     print("\nTUM AGIRLIKLAR HAZIR. weights/ icerigi:")
     for kok, _, fs in os.walk(WEIGHTS):
         for f in fs:

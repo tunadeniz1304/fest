@@ -22,3 +22,6 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# YOLO-World gomulu + CLIP offline agirliklari
+weights/clip/
