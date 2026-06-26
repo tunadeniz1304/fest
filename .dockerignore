@@ -1,0 +1,17 @@
+# Imaj boyutunu kucuk tutmak icin (8GB limiti)
+data/
+*.mp4
+*.avi
+*.mov
+*.tar
+imaj.tar
+.git/
+.gitignore
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+scripts/download_weights.py
+test_*.py
+*.md.bak

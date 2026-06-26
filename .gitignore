@@ -1,0 +1,24 @@
+# Agirliklar (buyuk; download_weights.py ile uretilir)
+weights/*.pt
+weights/easyocr/
+
+# Veri ve ciktilar
+data/
+*.mp4
+*.avi
+*.mov
+
+# Docker imaj arsivi
+*.tar
+imaj.tar
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
