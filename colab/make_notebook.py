@@ -40,8 +40,11 @@ assert torch.cuda.is_available(), "GPU YOK! Runtime -> Change runtime type -> A1
 print("GPU:", torch.cuda.get_device_name(0))
 """))
 
-cells.append(md("## 2. Kurulum"))
-cells.append(code("""!pip install -q ultralytics==8.2.103 pyyaml
+cells.append(md("""## 2. Kurulum
+ultralytics + numpy<2 (Colab pandas/numpy ikili uyumu icin sabit).
+**Bu hücreden sonra Colab 'Restart session' isteyebilir — istersse Restart yapip
+bu hücreden devam et (1. hücreyi tekrar çalıştırmana gerek yok).**"""))
+cells.append(code("""!pip install -q "numpy<2" ultralytics==8.2.103 pyyaml
 from ultralytics import YOLO
 import os, shutil, zipfile, glob, yaml, traceback
 os.makedirs('/content/weights', exist_ok=True)
@@ -233,18 +236,24 @@ except Exception as e:
     print("Otomatik indirme atlandi (Drive'dan alabilirsin):", e)
 """))
 
-cells.append(md("## 11. Metrik özeti (FTR raporu için — gerçek sayılar)"))
-cells.append(code("""import pandas as pd
+cells.append(md("""## 11. Metrik özeti (FTR raporu için — gerçek sayılar)
+pandas KULLANMAZ (numpy ikili uyumsuzlugundan kacinmak icin saf csv okuma)."""))
+cells.append(code("""import csv as _csv
 print("=== EGITIM METRIKLERI (rapor icin) ===")
 for ad in ['sigara','dms_v4','plate','color','statefarm']:
-    csv = f'/content/runs/{ad}/results.csv'
-    if os.path.exists(csv):
-        df = pd.read_csv(csv); df.columns = df.columns.str.strip()
-        son = df.iloc[-1]
-        cols = [c for c in df.columns if any(k in c for k in ['precision','recall','mAP50','accuracy_top1'])]
-        print(f"\\n[{ad}] (son epoch / {len(df)} epoch):")
-        for c in cols:
-            try: print(f"   {c}: {float(son[c]):.4f}")
+    p = f'/content/runs/{ad}/results.csv'
+    if not os.path.exists(p):
+        continue
+    with open(p) as f:
+        rows = list(_csv.reader(f))
+    if len(rows) < 2:
+        continue
+    basliklar = [h.strip() for h in rows[0]]
+    son = rows[-1]
+    print(f"\\n[{ad}] (son epoch / {len(rows)-1} epoch):")
+    for h, v in zip(basliklar, son):
+        if any(k in h for k in ['precision','recall','mAP50','accuracy_top1']):
+            try: print(f"   {h}: {float(v):.4f}")
             except: pass
 print("\\nNot: Bu rakamlari FTR 'Sinama' bolumunde kullan. Domain-gap nedeniyle")
 print("gercek yarisma videosunda farkli olabilir - 'literaturde/validasyonda' diye belirt.")
