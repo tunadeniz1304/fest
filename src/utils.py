@@ -136,6 +136,76 @@ def plaka_normalize(ham_metin):
 
 
 # ---------------------------------------------------------------------------
+# PLAKA PERSPEKTIF DUZELTME (4-nokta homografi)
+# Deep research: perspective rectification ~+%3 OCR dogrulugu (ucuz, OpenCV).
+# ---------------------------------------------------------------------------
+def _kose_sirala(noktalar):
+    """4 noktayi [sol-ust, sag-ust, sag-alt, sol-alt] sirasina koyar."""
+    pts = np.array(noktalar, dtype="float32").reshape(-1, 2)
+    siralı = np.zeros((4, 2), dtype="float32")
+    toplam = pts.sum(axis=1)
+    fark = np.diff(pts, axis=1).reshape(-1)
+    siralı[0] = pts[np.argmin(toplam)]   # sol-ust (min x+y)
+    siralı[2] = pts[np.argmax(toplam)]   # sag-alt (max x+y)
+    siralı[1] = pts[np.argmin(fark)]     # sag-ust (min y-x)
+    siralı[3] = pts[np.argmax(fark)]     # sol-alt (max y-x)
+    return siralı
+
+
+def dort_nokta_duzelt(img, kose_noktalari):
+    """
+    4 kose noktasiyla perspektif (homografi) donusumu uygulayip duz dikdortgen
+    plaka goruntusu uretir. Hata/yetersiz nokta -> None (cokmez).
+    """
+    try:
+        pts = np.array(kose_noktalari, dtype="float32").reshape(-1, 2)
+        if pts.shape[0] != 4:
+            return None
+        kaynak = _kose_sirala(pts)
+        (su, sa, ad, al) = kaynak
+        en_ust = np.linalg.norm(sa - su)
+        en_alt = np.linalg.norm(ad - al)
+        boy_sol = np.linalg.norm(al - su)
+        boy_sag = np.linalg.norm(ad - sa)
+        W = int(max(en_ust, en_alt))
+        H = int(max(boy_sol, boy_sag))
+        if W < 5 or H < 5:
+            return None
+        hedef = np.array([[0, 0], [W - 1, 0], [W - 1, H - 1], [0, H - 1]], dtype="float32")
+        M = cv2.getPerspectiveTransform(kaynak, hedef)
+        return cv2.warpPerspective(img, M, (W, H))
+    except Exception:
+        return None
+
+
+def plaka_bolgesi_bul(arac_crop):
+    """
+    Arac kirpintisinda olasi plaka bolgesinin 4 kose noktasini bulur (en/boy
+    orani plaka-benzeri en buyuk dikdortgen kontur). Bulamazsa None.
+    """
+    try:
+        if arac_crop is None or arac_crop.size == 0:
+            return None
+        gri = cv2.cvtColor(arac_crop, cv2.COLOR_BGR2GRAY)
+        gri = cv2.bilateralFilter(gri, 11, 17, 17)
+        kenar = cv2.Canny(gri, 30, 200)
+        konturlar, _ = cv2.findContours(kenar, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        konturlar = sorted(konturlar, key=cv2.contourArea, reverse=True)[:10]
+        for k in konturlar:
+            cevre = cv2.arcLength(k, True)
+            yakl = cv2.approxPolyDP(k, 0.02 * cevre, True)
+            if len(yakl) == 4:
+                x, y, w, h = cv2.boundingRect(yakl)
+                oran = w / float(h) if h > 0 else 0
+                # TR plaka en/boy orani kabaca 2:1 - 5:1
+                if 1.8 <= oran <= 6.0 and w > 30:
+                    return yakl.reshape(4, 2).astype("float32")
+        return None
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
 # FRAME SAMPLING
 # ---------------------------------------------------------------------------
 def hedef_frame_indeksleri(toplam_frame, fps, hedef_fps=2.0):

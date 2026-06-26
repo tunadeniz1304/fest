@@ -26,7 +26,10 @@ from src.labels import esik_al
 from src.aggregate import (
     cogunluk_oyu, plaka_karakter_oylama, eylem_karari, tespit_dedup, slalom_var_mi,
 )
-from src.utils import baskin_renk, arac_tipi_heuristik, plaka_normalize
+from src.utils import (
+    baskin_renk, arac_tipi_heuristik, plaka_normalize,
+    plaka_bolgesi_bul, dort_nokta_duzelt,
+)
 
 # Docker'da /app/weights; yerelde proje koku/weights. Hangisi varsa onu kullan.
 _DOCKER_W = "/app/weights"
@@ -145,7 +148,15 @@ def run_inference(video_path, weights_path=YOLO_WEIGHTS):
                     arac_ilk_zaman.setdefault(tid, zaman_sn)
                     if reader is not None and crop.size > 0:
                         try:
-                            for it in reader.readtext(crop, detail=1, paragraph=False):
+                            # Perspektif duzeltme: plaka bolgesini bul + duzlestir
+                            # (egik plakada OCR dogrulugu artar). Bulamazsa tum crop.
+                            ocr_girdi = crop
+                            kose = plaka_bolgesi_bul(crop)
+                            if kose is not None:
+                                duz = dort_nokta_duzelt(crop, kose)
+                                if duz is not None and duz.size > 0:
+                                    ocr_girdi = duz
+                            for it in reader.readtext(ocr_girdi, detail=1, paragraph=False):
                                 norm = plaka_normalize(it[1])
                                 if norm:
                                     arac_plaka[tid].append((norm, float(it[2])))
