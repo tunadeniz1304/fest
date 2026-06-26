@@ -1,241 +1,197 @@
 # -*- coding: utf-8 -*-
 """
-Ana cikarim (inference) pipeline.
+Track-tabanli cikarim pipeline: ByteTrack + temporal voting.
 
 Mimari:
-  video -> frame sampling -> YOLO (COCO) tespit
-        -> arac (car/truck/bus): tip heuristigi + renk (HSV) + plaka (kirp+OCR)
-        -> kolay etiketler: cell phone->telefonla_konusma, bottle->su_icme,
-                            laptop->bilgisayar, person->yolcular
-        -> results.json semasi
+  video -> model.track (ByteTrack, vid_stride) -> her track_id icin tahminleri biriktir
+        -> track bitince: cls/tip/renk/koltuk cogunluk oyu, plaka karakter oylama,
+           eylem frame-orani esigi -> results.json semasi
 
 Tasarim ilkeleri:
-  - Hicbir sey cokmez: her adim try/except, tespit yoksa bos liste.
-  - Offline: agirliklar lokal path'ten, otomatik indirme kapali.
-  - Sure korumasi: 9 dk wall-clock guard (10 dk timeout'tan once eldekini yaz).
-  - ASCII/kucuk harf etiketler labels.py'den; uydurma yok.
+  - Hicbir sey cokmez: her adim try/except, hata olursa bos gecerli sema.
+  - Offline: agirliklar lokal path; otomatik indirme kapali.
+  - Sure korumasi: 9 dk wall-clock guard.
+  - Temporal voting: tek-frame yanlis pozitifleri track boyunca eler (precision^),
+    track buffer kacan frame'leri koprular (recall^).
 
 NOT: Anti-cheat -> ortam/hostname/IP/env tespiti YOK. Akis deterministik.
 """
 import os
 import time
+from collections import defaultdict
 
-import numpy as np
 import cv2
 
-from src.labels import KATEGORI_ETIKETLERI
-from src.utils import (
-    baskin_renk,
-    arac_tipi_heuristik,
-    plaka_normalize,
-    hedef_frame_indeksleri,
-)
+from src.labels import esik_al
+from src.aggregate import cogunluk_oyu, plaka_karakter_oylama, eylem_karari
+from src.utils import baskin_renk, arac_tipi_heuristik, plaka_normalize
 
-# --- Sabitler ---
 WEIGHTS_DIR = "/app/weights"
-YOLO_WEIGHTS = os.path.join(WEIGHTS_DIR, "best_model.pt")   # COCO yolo agirligi
-PLATE_WEIGHTS = os.path.join(WEIGHTS_DIR, "plate.pt")        # opsiyonel plaka detektoru
-EASYOCR_DIR = os.path.join(WEIGHTS_DIR, "easyocr")           # offline OCR modelleri
+YOLO_WEIGHTS = os.path.join(WEIGHTS_DIR, "best_model.pt")
+TRACKER_CFG = os.path.join(WEIGHTS_DIR, "bytetrack.yaml")
+EASYOCR_DIR = os.path.join(WEIGHTS_DIR, "easyocr")
 
-HEDEF_FPS = 5.0          # saniyede ~5 kare ornekle
-SURE_GUARD_SN = 9 * 60   # 9 dk: bu sure dolarsa eldekini yaz
-CONF_ESIK = 0.35         # YOLO minimum guven
-# Ayni etiket icin yakin saniyelerde tekrar tespitleri bastir (gurultu azalt)
-DEDUP_PENCERE_SN = 1.5
-
-# COCO sinif adi -> sartname (kategori, etiket) eslemesi
+VID_STRIDE = 5
+SURE_GUARD_SN = 9 * 60
+COCO_ARAC = {"car", "truck", "bus"}
 COCO_KOLAY = {
     "cell phone": ("sofor_eylemi", "telefonla_konusma"),
-    "bottle":     ("sofor_eylemi", "su_icme"),
-    "laptop":     ("nesneler", "bilgisayar"),
+    "bottle": ("sofor_eylemi", "su_icme"),
+    "laptop": ("nesneler", "bilgisayar"),
 }
-COCO_ARAC = {"car", "truck", "bus"}
 
 
-def _lazy_yolo(path):
-    """YOLO'yu lokal agirliktan yukler; cuda varsa cuda, yoksa cpu."""
-    from ultralytics import YOLO
-    import torch
-    model = YOLO(path)
-    dev = "cuda" if torch.cuda.is_available() else "cpu"
-    return model, dev
-
-
-def _lazy_ocr():
-    """EasyOCR'i offline (download_enabled=False) yukler. Yoksa None doner."""
-    try:
-        import easyocr
-        import torch
-        gpu = torch.cuda.is_available()
-        reader = easyocr.Reader(
-            ["en"],
-            gpu=gpu,
-            model_storage_directory=EASYOCR_DIR if os.path.isdir(EASYOCR_DIR) else None,
-            download_enabled=False,
-        )
-        return reader
-    except Exception as e:
-        print(f"[OCR] EasyOCR yuklenemedi, plaka OCR atlanacak: {e}")
-        return None
-
-
-def _plaka_oku(reader, arac_crop):
-    """Arac kirpintisinda plaka okumaya calisir. Bulamazsa '' doner."""
-    if reader is None or arac_crop is None or arac_crop.size == 0:
-        return "", 0.0
-    try:
-        sonuc = reader.readtext(arac_crop, detail=1, paragraph=False)
-        en_iyi_metin, en_iyi_conf = "", 0.0
-        for item in sonuc:
-            # easyocr: (bbox, text, conf)
-            metin = item[1] if len(item) > 1 else ""
-            conf = float(item[2]) if len(item) > 2 else 0.0
-            norm = plaka_normalize(metin)
-            if norm and conf >= en_iyi_conf:
-                en_iyi_metin, en_iyi_conf = norm, conf
-        return en_iyi_metin, en_iyi_conf
-    except Exception:
-        return "", 0.0
-
-
-def _yolcu_konumu(bbox, frame_w):
-    """person bbox'indan kaba yolcu konumu (on_koltuk / arka_koltuk_1 / arka_koltuk_2)."""
-    x1, y1, x2, y2 = bbox
-    cx = (x1 + x2) / 2.0
-    alan = (x2 - x1) * (y2 - y1)
-    # Buyuk ve merkeze yakin -> on koltuk; kucuk ve kenarda -> arka
-    if alan > 0.20 * frame_w * frame_w:
-        return "on_koltuk"
-    return "arka_koltuk_1" if cx < frame_w / 2 else "arka_koltuk_2"
-
-
-def run_inference(video_path, weights_path=YOLO_WEIGHTS):
-    """
-    Video uzerinde cikarim yapar, sartname semasinda dict dondurur.
-    Hata olsa bile gecerli (bos da olsa) bir sema doner -- asla cokmez.
-    """
-    video_id = os.path.basename(video_path) if video_path else "video.mp4"
-    bos_sonuc = {
+def _bos_sonuc(video_id):
+    return {
         "video_id": video_id,
         "arac_bilgisi": {"tip": "", "plaka": "", "renk": "", "confidence_score": 0.0},
         "tespitler": [],
     }
 
-    cap = None
+
+def _lazy_ocr():
+    """EasyOCR'i offline (download_enabled=False) yukler. Yoksa None."""
     try:
-        cap = cv2.VideoCapture(video_path)
-        if not cap or not cap.isOpened():
-            print(f"[Inference] Video acilamadi: {video_path}")
-            return bos_sonuc
+        import easyocr
+        import torch
+        return easyocr.Reader(
+            ["en"], gpu=torch.cuda.is_available(),
+            model_storage_directory=EASYOCR_DIR if os.path.isdir(EASYOCR_DIR) else None,
+            download_enabled=False,
+        )
+    except Exception as e:
+        print(f"[OCR] EasyOCR yuklenemedi, plaka OCR atlanacak: {e}")
+        return None
 
-        fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
-        toplam = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-        frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1280)
-        indeksler = set(hedef_frame_indeksleri(toplam, fps, HEDEF_FPS))
-        print(f"[Inference] fps={fps:.1f} toplam_frame={toplam} ornek={len(indeksler)}")
 
-        model, dev = _lazy_yolo(weights_path)
-        names = model.names  # {id: 'car', ...}
+def run_inference(video_path, weights_path=YOLO_WEIGHTS):
+    video_id = os.path.basename(video_path) if video_path else "video.mp4"
+
+    # Video acilabilir mi? (cokmeden erken don)
+    cap = cv2.VideoCapture(video_path)
+    if not cap or not cap.isOpened():
+        if cap:
+            cap.release()
+        print(f"[Inference] Video acilamadi: {video_path}")
+        return _bos_sonuc(video_id)
+    fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+    frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1280)
+    cap.release()
+
+    try:
+        from ultralytics import YOLO
+        import torch
+        model = YOLO(weights_path)
+        names = model.names
+        dev = "cuda" if torch.cuda.is_available() else "cpu"
         reader = _lazy_ocr()
+    except Exception as e:
+        print(f"[Inference] Model yuklenemedi: {e}")
+        return _bos_sonuc(video_id)
 
-        baslangic = time.time()
-        tespitler = []
-        son_etiket_zaman = {}   # dedup icin
-        # En guvenilir arac tespiti (tum video icindeki en yuksek conf arac)
-        en_iyi_arac = {"conf": 0.0, "tip": "", "renk": "", "plaka": "", "plaka_conf": 0.0}
+    # track_id -> birikim
+    arac_tip = defaultdict(list)      # [(tip, conf)]
+    arac_renk = defaultdict(list)     # [(renk, conf)]
+    arac_plaka = defaultdict(list)    # [(plaka, conf)]
+    arac_conf = defaultdict(list)     # [conf]
+    eylem_say = defaultdict(lambda: defaultdict(int))    # tid -> {(kat,etk): frame}
+    eylem_conf = defaultdict(lambda: defaultdict(list))
+    eylem_zaman = defaultdict(dict)   # tid -> {(kat,etk): ilk_saniye}
+    track_len = defaultdict(int)
+    yolcu_oy = defaultdict(list)      # tid -> [(etk, conf)]
+    yolcu_zaman = {}
 
-        idx = -1
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-            idx += 1
-            if idx not in indeksler:
-                continue
-
-            # Sure korumasi: 9 dk dolduysa eldekini dondur
+    baslangic = time.time()
+    tracker = TRACKER_CFG if os.path.exists(TRACKER_CFG) else "bytetrack.yaml"
+    try:
+        akis = model.track(
+            source=video_path, tracker=tracker, persist=True, stream=True,
+            conf=0.20, vid_stride=VID_STRIDE, device=dev,
+            half=(dev == "cuda"), verbose=False,
+        )
+        f_idx = 0
+        for r in akis:
             if time.time() - baslangic > SURE_GUARD_SN:
-                print("[Inference] Sure guard tetiklendi, eldeki sonuclar yaziliyor.")
+                print("[Inference] Sure guard tetiklendi.")
                 break
-
-            zaman_sn = round(idx / fps, 2)
-
-            try:
-                res = model(frame, device=dev, half=(dev == "cuda"),
-                            conf=CONF_ESIK, verbose=False)[0]
-            except Exception as e:
-                print(f"[Inference] frame {idx} YOLO hatasi: {e}")
+            f_idx += VID_STRIDE
+            zaman_sn = round(f_idx / fps, 2)
+            if r.boxes is None or r.boxes.id is None:
                 continue
-
-            if res.boxes is None:
-                continue
-
-            for box in res.boxes:
-                try:
-                    cls_id = int(box.cls[0])
-                    conf = float(box.conf[0])
-                    coco_ad = names.get(cls_id, str(cls_id))
-                    x1, y1, x2, y2 = [float(v) for v in box.xyxy[0]]
-                    bbox = (x1, y1, x2, y2)
-                except Exception:
+            ids = r.boxes.id.int().cpu().tolist()
+            clss = r.boxes.cls.int().cpu().tolist()
+            confs = r.boxes.conf.cpu().tolist()
+            xyxy = r.boxes.xyxy.cpu().tolist()
+            frame = r.orig_img
+            for tid, c, cf, box in zip(ids, clss, confs, xyxy):
+                coco_ad = names.get(c, str(c))
+                if cf < esik_al(coco_ad):
                     continue
-
-                # --- Arac ---
+                track_len[tid] += 1
+                x1, y1, x2, y2 = box
                 if coco_ad in COCO_ARAC:
                     crop = frame[int(max(0, y1)):int(y2), int(max(0, x1)):int(x2)]
-                    renk = baskin_renk(crop)
-                    tip = arac_tipi_heuristik(coco_ad, bbox)
-                    if conf > en_iyi_arac["conf"]:
-                        plaka, p_conf = _plaka_oku(reader, crop)
-                        en_iyi_arac.update(
-                            conf=conf, tip=tip, renk=renk,
-                            plaka=plaka, plaka_conf=p_conf,
-                        )
-                    continue
-
-                # --- Kolay COCO etiketleri ---
-                if coco_ad in COCO_KOLAY:
-                    kat, etk = COCO_KOLAY[coco_ad]
-                    anahtar = (kat, etk)
-                    if zaman_sn - son_etiket_zaman.get(anahtar, -99) >= DEDUP_PENCERE_SN:
-                        tespitler.append({
-                            "zaman_saniye": zaman_sn,
-                            "kategori": kat,
-                            "etiket": etk,
-                            "confidence_score": round(conf, 2),
-                        })
-                        son_etiket_zaman[anahtar] = zaman_sn
-                    continue
-
-                # --- Yolcular (person) ---
-                if coco_ad == "person":
-                    etk = _yolcu_konumu(bbox, frame_w)
-                    anahtar = ("yolcular", etk)
-                    if zaman_sn - son_etiket_zaman.get(anahtar, -99) >= DEDUP_PENCERE_SN:
-                        tespitler.append({
-                            "zaman_saniye": zaman_sn,
-                            "kategori": "yolcular",
-                            "etiket": etk,
-                            "confidence_score": round(conf, 2),
-                        })
-                        son_etiket_zaman[anahtar] = zaman_sn
-                    continue
-
-        arac_bilgisi = {
-            "tip": en_iyi_arac["tip"],
-            "plaka": en_iyi_arac["plaka"],
-            "renk": en_iyi_arac["renk"],
-            "confidence_score": round(en_iyi_arac["conf"], 2),
-        }
-        return {
-            "video_id": video_id,
-            "arac_bilgisi": arac_bilgisi,
-            "tespitler": tespitler,
-        }
-
+                    arac_tip[tid].append((arac_tipi_heuristik(coco_ad, (x1, y1, x2, y2)), cf))
+                    arac_renk[tid].append((baskin_renk(crop), cf))
+                    arac_conf[tid].append(cf)
+                    if reader is not None and crop.size > 0:
+                        try:
+                            for it in reader.readtext(crop, detail=1, paragraph=False):
+                                norm = plaka_normalize(it[1])
+                                if norm:
+                                    arac_plaka[tid].append((norm, float(it[2])))
+                        except Exception:
+                            pass
+                elif coco_ad in COCO_KOLAY:
+                    anahtar = COCO_KOLAY[coco_ad]
+                    eylem_say[tid][anahtar] += 1
+                    eylem_conf[tid][anahtar].append(cf)
+                    eylem_zaman[tid].setdefault(anahtar, zaman_sn)
+                elif coco_ad == "person":
+                    alan = (x2 - x1) * (y2 - y1)
+                    etk = "on_koltuk" if alan > 0.20 * frame_w * frame_w else (
+                        "arka_koltuk_1" if (x1 + x2) / 2 < frame_w / 2 else "arka_koltuk_2")
+                    yolcu_oy[tid].append((etk, cf))
+                    yolcu_zaman.setdefault(tid, zaman_sn)
     except Exception as e:
-        print(f"[Inference] Beklenmeyen hata, bos sema donuluyor: {e}")
-        return bos_sonuc
-    finally:
-        if cap is not None:
-            cap.release()
+        print(f"[Inference] Track akisi hatasi: {e}")
+
+    # --- Nihai karar: en guvenilir aracdan arac_bilgisi ---
+    en_iyi_tid, en_iyi_conf = None, -1.0
+    for tid, cs in arac_conf.items():
+        ort = sum(cs) / len(cs)
+        if ort > en_iyi_conf:
+            en_iyi_conf, en_iyi_tid = ort, tid
+    arac_bilgisi = {"tip": "", "plaka": "", "renk": "", "confidence_score": 0.0}
+    if en_iyi_tid is not None:
+        tip, _ = cogunluk_oyu(arac_tip[en_iyi_tid], min_count=1, min_ratio=0.0)
+        renk, _ = cogunluk_oyu(arac_renk[en_iyi_tid], min_count=1, min_ratio=0.0)
+        plaka, _ = plaka_karakter_oylama(arac_plaka[en_iyi_tid])
+        arac_bilgisi = {
+            "tip": tip or "", "plaka": plaka or "", "renk": renk or "",
+            "confidence_score": round(en_iyi_conf, 2),
+        }
+
+    # --- Tespitler: eylem-frame-orani esigi (anlik flash'lari eler) ---
+    tespitler = []
+    for tid, anahtarlar in eylem_say.items():
+        for anahtar, sayi in anahtarlar.items():
+            confs = eylem_conf[tid][anahtar]
+            ort = sum(confs) / len(confs) if confs else 0.0
+            raporla, conf = eylem_karari(sayi, track_len[tid], ort)
+            if raporla:
+                kat, etk = anahtar
+                tespitler.append({
+                    "zaman_saniye": eylem_zaman[tid][anahtar],
+                    "kategori": kat, "etiket": etk, "confidence_score": conf,
+                })
+    for tid, oylar in yolcu_oy.items():
+        etk, conf = cogunluk_oyu(oylar, min_count=2, min_ratio=0.4)
+        if etk:
+            tespitler.append({
+                "zaman_saniye": yolcu_zaman[tid],
+                "kategori": "yolcular", "etiket": etk, "confidence_score": conf,
+            })
+
+    tespitler.sort(key=lambda t: t["zaman_saniye"])
+    return {"video_id": video_id, "arac_bilgisi": arac_bilgisi, "tespitler": tespitler}
