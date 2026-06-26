@@ -1,4 +1,6 @@
-from src.aggregate import cogunluk_oyu, plaka_karakter_oylama, eylem_karari
+from src.aggregate import (
+    cogunluk_oyu, plaka_karakter_oylama, eylem_karari, tespit_dedup,
+)
 
 
 def test_cogunluk_oyu_net_kazanan():
@@ -42,3 +44,26 @@ def test_eylem_karari_surekli_eylemi_raporlar():
     raporla, conf = eylem_karari(gorulen_frame=20, track_uzunlugu=40, ort_conf=0.85)
     assert raporla is True
     assert conf == 0.85
+
+
+def test_tespit_dedup_ayni_etiketi_birlestirir():
+    # Ayni (kategori, etiket) birden cok track'ten geldi -> tek tespit, en yuksek conf
+    tespitler = [
+        {"zaman_saniye": 0.2, "kategori": "yolcular", "etiket": "arka_koltuk_1", "confidence_score": 0.93},
+        {"zaman_saniye": 0.8, "kategori": "yolcular", "etiket": "arka_koltuk_1", "confidence_score": 0.59},
+        {"zaman_saniye": 0.2, "kategori": "yolcular", "etiket": "arka_koltuk_2", "confidence_score": 0.92},
+    ]
+    sonuc = tespit_dedup(tespitler)
+    # arka_koltuk_1 tek, arka_koltuk_2 tek -> 2 tespit
+    assert len(sonuc) == 2
+    k1 = [t for t in sonuc if t["etiket"] == "arka_koltuk_1"][0]
+    assert k1["confidence_score"] == 0.93   # en yuksek conf tutuldu
+    assert k1["zaman_saniye"] == 0.2        # en yuksek conf'un zamani
+
+
+def test_tespit_dedup_farkli_etiket_korur():
+    tespitler = [
+        {"zaman_saniye": 1.0, "kategori": "sofor_eylemi", "etiket": "telefonla_konusma", "confidence_score": 0.8},
+        {"zaman_saniye": 2.0, "kategori": "nesneler", "etiket": "bilgisayar", "confidence_score": 0.7},
+    ]
+    assert len(tespit_dedup(tespitler)) == 2

@@ -23,7 +23,7 @@ from collections import defaultdict
 import cv2
 
 from src.labels import esik_al
-from src.aggregate import cogunluk_oyu, plaka_karakter_oylama, eylem_karari
+from src.aggregate import cogunluk_oyu, plaka_karakter_oylama, eylem_karari, tespit_dedup
 from src.utils import baskin_renk, arac_tipi_heuristik, plaka_normalize
 
 # Docker'da /app/weights; yerelde proje koku/weights. Hangisi varsa onu kullan.
@@ -196,5 +196,6 @@ def run_inference(video_path, weights_path=YOLO_WEIGHTS):
                 "kategori": "yolcular", "etiket": etk, "confidence_score": conf,
             })
 
-    tespitler.sort(key=lambda t: t["zaman_saniye"])
+    # Mukerrer (kategori, etiket) tespitlerini birlestir (precision)
+    tespitler = tespit_dedup(tespitler)
     return {"video_id": video_id, "arac_bilgisi": arac_bilgisi, "tespitler": tespitler}

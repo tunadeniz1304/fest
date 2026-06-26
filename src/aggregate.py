@@ -51,6 +51,21 @@ def plaka_karakter_oylama(okumalar):
     return (plaka, conf)
 
 
+def tespit_dedup(tespitler):
+    """
+    Ayni (kategori, etiket) icin birden cok track tespiti varsa en yuksek
+    confidence_score'lu olani tutar. Mukerrer raporlamayi onler (precision).
+    Cikti zaman_saniye'ye gore sirali.
+    """
+    en_iyi = {}
+    for t in tespitler:
+        anahtar = (t["kategori"], t["etiket"])
+        mevcut = en_iyi.get(anahtar)
+        if mevcut is None or t["confidence_score"] > mevcut["confidence_score"]:
+            en_iyi[anahtar] = t
+    return sorted(en_iyi.values(), key=lambda t: t["zaman_saniye"])
+
+
 def eylem_karari(gorulen_frame, track_uzunlugu, ort_conf, esik_oran=0.3, min_frame=2):
     """
     Bir eylemi (telefon/sigara/su) track boyunca gorulme oranina gore raporla.
