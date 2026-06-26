@@ -40,16 +40,25 @@ assert torch.cuda.is_available(), "GPU YOK! Runtime -> Change runtime type -> A1
 print("GPU:", torch.cuda.get_device_name(0))
 """))
 
-cells.append(md("""## 2. Kurulum
-ultralytics + numpy<2 (Colab pandas/numpy ikili uyumu icin sabit).
-**Bu hücreden sonra Colab 'Restart session' isteyebilir — istersse Restart yapip
-bu hücreden devam et (1. hücreyi tekrar çalıştırmana gerek yok).**"""))
-cells.append(code("""!pip install -q "numpy<2" ultralytics==8.2.103 pyyaml
-from ultralytics import YOLO
-import os, shutil, zipfile, glob, yaml, traceback
-os.makedirs('/content/weights', exist_ok=True)
-os.makedirs('/content/datasets', exist_ok=True)
-print("Kurulum tamam. ultralytics yuklendi.")
+cells.append(md("""## 2. Kurulum (numpy'a DOKUNMA — Colab'in torch/numpy uyumu korunur)
+
+**ÖNEMLİ:** Colab'in torch/torchvision'i numpy 2.x'e karsi derlidir. numpy'i
+1.x'e dusurmek `numpy.dtype size changed` ikili uyumsuzlugu yaratir.
+
+**Eğer daha önce numpy<2 kurduysan (eski hatali surum):** Once bu hucreyi calistir,
+Colab 'RESTART SESSION' diyecek -> **Restart yap**, sonra 1. hucreden devam et."""))
+cells.append(code("""# Bozuk numpy varsa Colab varsayilanina (2.x) geri getir + ultralytics kur
+!pip install -q "numpy>=2.0" ultralytics==8.2.103
+import numpy as np
+print("numpy:", np.__version__)
+if np.__version__.startswith("1."):
+    print("\\n!!! numpy hala 1.x — RUNTIME -> RESTART SESSION yap, sonra 1. hucreden devam et !!!")
+else:
+    from ultralytics import YOLO
+    import os, shutil, zipfile, glob, yaml, traceback
+    os.makedirs('/content/weights', exist_ok=True)
+    os.makedirs('/content/datasets', exist_ok=True)
+    print("Kurulum tamam. ultralytics yuklendi.")
 """))
 
 cells.append(md("## 3. Google Drive bağla"))
