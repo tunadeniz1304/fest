@@ -29,7 +29,7 @@ _BURUN = 1           # burun ucu
 _YUZ_SOL = 234       # sol yuz kenari
 _YUZ_SAG = 454       # sag yuz kenari
 
-VID_STRIDE = 5
+VID_STRIDE = 8   # DMS davranislari (esneme/bakma) saniyeler surer; 8 stride yeterli + hizli
 
 
 def _yaw_tahmin(lm):
