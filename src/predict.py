@@ -31,6 +31,20 @@ from src.utils import (
     plaka_bolgesi_bul, dort_nokta_duzelt,
 )
 
+# Renk modeli (VCoR fine-tune) izole; yoksa HSV'ye duser
+try:
+    from src.renk_model import renk_tahmin
+except Exception:
+    def renk_tahmin(_crop):  # model modulu yoksa stub
+        return None
+
+# Plaka modeli (License Plate fine-tune) izole; yoksa klasik plaka_bolgesi_bul
+try:
+    from src.plaka_model import plaka_crop_bul
+except Exception:
+    def plaka_crop_bul(_crop):  # model modulu yoksa stub
+        return None
+
 # Docker'da /app/weights; yerelde proje koku/weights. Hangisi varsa onu kullan.
 _DOCKER_W = "/app/weights"
 _LOCAL_W = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "weights")
@@ -144,19 +158,23 @@ def run_inference(video_path, weights_path=YOLO_WEIGHTS):
                 if coco_ad in COCO_ARAC:
                     crop = frame[int(max(0, y1)):int(y2), int(max(0, x1)):int(x2)]
                     arac_tip[tid].append((arac_tipi_heuristik(coco_ad, (x1, y1, x2, y2)), cf))
-                    arac_renk[tid].append((baskin_renk(crop), cf))
+                    # Renk: egitilmis model (VCoR) varsa onu kullan, yoksa HSV heuristik
+                    renk_ = renk_tahmin(crop) or baskin_renk(crop)
+                    arac_renk[tid].append((renk_, cf))
                     arac_conf[tid].append(cf)
                     arac_merkez_x[tid].append((x1 + x2) / 2.0)
                     arac_ilk_zaman.setdefault(tid, zaman_sn)
                     # OCR pahali; her arac-frame'inde degil, seyrek calistir (hiz)
                     if reader is not None and crop.size > 0 and track_len[tid] % OCR_HER_N_ARAC == 1:
                         try:
-                            # Perspektif duzeltme: plaka bolgesini bul + duzlestir
-                            # (egik plakada OCR dogrulugu artar). Bulamazsa tum crop.
-                            ocr_girdi = crop
-                            kose = plaka_bolgesi_bul(crop)
+                            # Plaka bolgesi: egitilmis model (mAP %97) varsa onunla
+                            # daralt; yoksa tum arac crop'u. Sonra klasik perspektif.
+                            ocr_girdi = plaka_crop_bul(crop)
+                            if ocr_girdi is None or ocr_girdi.size == 0:
+                                ocr_girdi = crop
+                            kose = plaka_bolgesi_bul(ocr_girdi)
                             if kose is not None:
-                                duz = dort_nokta_duzelt(crop, kose)
+                                duz = dort_nokta_duzelt(ocr_girdi, kose)
                                 if duz is not None and duz.size > 0:
                                     ocr_girdi = duz
                             for it in reader.readtext(ocr_girdi, detail=1, paragraph=False):
@@ -246,6 +264,20 @@ def run_inference(video_path, weights_path=YOLO_WEIGHTS):
         tespitler.extend(sigara_tespit(video_path))
     except Exception as e:
         print(f"[Inference] sigara katmani atlandi: {e}")
+
+    # --- surucu davranisi: telefon/su/uzanma (dms_actions fine-tune; izole) ---
+    try:
+        from src.dms_actions import dms_actions_tespit
+        tespitler.extend(dms_actions_tespit(video_path))
+    except Exception as e:
+        print(f"[Inference] dms_actions katmani atlandi: {e}")
+
+    # --- YEDEK: State Farm davranis teyidi (classification; izole, dedup birlestirir) ---
+    try:
+        from src.statefarm import statefarm_tespit
+        tespitler.extend(statefarm_tespit(video_path))
+    except Exception as e:
+        print(f"[Inference] statefarm katmani atlandi: {e}")
 
     # Mukerrer (kategori, etiket) tespitlerini birlestir (precision)
     tespitler = tespit_dedup(tespitler)
