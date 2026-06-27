@@ -87,11 +87,15 @@ def dms_tespit(video_path, vid_stride=VID_STRIDE):
 
         esneme_ardisik = 0
         esneme_zaman = None
-        # Yaw: ARDISIK sureklilik (anlik/daginik bakislari ele - precision)
-        yaw_ardisik = {}      # etiket -> mevcut ardisik frame sayisi
-        yaw_max_ardisik = {}  # etiket -> goruluen en uzun ardisik seri
-        yaw_zaman = {}        # etiket -> ilk (yeterli seri basladigi) zaman
-        yaw_conf = {}         # etiket -> [orantili guven]
+        # Yaw: "herhangi bir bakma" uzerinden ARDISIK say (arkaya<->etrafa zikzagi
+        # serisi bozmasin - kafa cevirme kesintisiz bakmadir). Seri bitince etiket
+        # = seride gorulen EN BUYUK aci (arkaya > etrafa) -> en siddetli davranis.
+        bakma_ardisik = 0     # mevcut kesintisiz bakma serisi
+        bakma_seri_max_aci = 0.0   # mevcut seride gorulen en buyuk |yaw|
+        bakma_seri_zaman = None    # mevcut seri baslangic zamani
+        bakma_seri_confs = []      # mevcut seri guvenleri
+        # En iyi (en uzun) bakma serisi sonucu
+        en_iyi = {"len": 0, "aci": 0.0, "zaman": None, "confs": []}
         tespitler = []
         idx = -1
         while True:
@@ -124,17 +128,20 @@ def dms_tespit(video_path, vid_stride=VID_STRIDE):
 
             # --- Yaw davranisi (arkaya/etrafa bakma) - ARDISIK sureklilik ---
             yaw = _yaw_tahmin(lm, f_w, f_h)
-            etk = yaw_davranisi(yaw)
-            # Bu karede tetiklenen etiket disindaki tum ardisik sayaclari sifirla
-            for e in list(yaw_ardisik.keys()):
-                if e != etk:
-                    yaw_ardisik[e] = 0
-            if etk:
-                if yaw_ardisik.get(etk, 0) == 0:
-                    yaw_zaman[etk] = zaman_sn   # serinin baslangic zamani
-                yaw_ardisik[etk] = yaw_ardisik.get(etk, 0) + 1
-                yaw_max_ardisik[etk] = max(yaw_max_ardisik.get(etk, 0), yaw_ardisik[etk])
-                yaw_conf.setdefault(etk, []).append(min(1.0, abs(yaw) / 90.0))
+            etk = yaw_davranisi(yaw)   # None / etrafa_bakinma / arkaya_bakma
+            if etk:   # bu karede bir tur bakma var -> seriyi surdur
+                if bakma_ardisik == 0:
+                    bakma_seri_zaman = zaman_sn
+                    bakma_seri_max_aci = 0.0
+                    bakma_seri_confs = []
+                bakma_ardisik += 1
+                bakma_seri_max_aci = max(bakma_seri_max_aci, abs(yaw))
+                bakma_seri_confs.append(min(1.0, abs(yaw) / 90.0))
+                if bakma_ardisik > en_iyi["len"]:
+                    en_iyi = {"len": bakma_ardisik, "aci": bakma_seri_max_aci,
+                              "zaman": bakma_seri_zaman, "confs": list(bakma_seri_confs)}
+            else:     # bakma yok -> seri bitti
+                bakma_ardisik = 0
 
         cap.release()
         face_mesh.close()
@@ -146,15 +153,16 @@ def dms_tespit(video_path, vid_stride=VID_STRIDE):
                 "kategori": "sofor_eylemi", "etiket": "esneme",
                 "confidence_score": 0.7,
             })
-        # Karar: yaw davranislari (en uzun ARDISIK seri esigi - anlik/daginik ele)
-        for etk, max_seri in yaw_max_ardisik.items():
-            if max_seri >= YAW_MIN_ARDISIK:
-                confs = yaw_conf.get(etk, [0.5])
-                tespitler.append({
-                    "zaman_saniye": yaw_zaman[etk],
-                    "kategori": "sofor_eylemi", "etiket": etk,
-                    "confidence_score": round(0.5 + 0.4 * (sum(confs) / len(confs)), 2),
-                })
+        # Karar: bakma (en uzun kesintisiz seri esigi gecerse). Etiket = serinin
+        # EN BUYUK acisina gore (arkaya esigi astiysa arkaya_bakma, yoksa etrafa).
+        if en_iyi["len"] >= YAW_MIN_ARDISIK:
+            etk = yaw_davranisi(en_iyi["aci"]) or "etrafa_bakinma"
+            confs = en_iyi["confs"] or [0.5]
+            tespitler.append({
+                "zaman_saniye": en_iyi["zaman"] if en_iyi["zaman"] is not None else 0.0,
+                "kategori": "sofor_eylemi", "etiket": etk,
+                "confidence_score": round(0.5 + 0.4 * (sum(confs) / len(confs)), 2),
+            })
         return tespitler
     except Exception as e:
         print(f"[DMS] katman atlandi: {e}")

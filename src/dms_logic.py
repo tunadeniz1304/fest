@@ -19,7 +19,8 @@ MAR_ESIK = 0.55           # agiz acik kabul esigi (konusma yanlis-pozitifi azalt
 YAW_ARKAYA = 65.0         # |yaw| bu ustu -> arkaya_bakma
 YAW_ETRAFA = 40.0         # |yaw| bu ustu (arkaya altinda) -> etrafa_bakinma
 ESNEME_ARDISIK = 15       # MAR esik-ustu min ardisik frame -> esneme
-YAW_MIN_ARDISIK = 8       # bakma icin min ARDISIK frame (anlik bakisi ele - precision)
+YAW_MIN_ARDISIK = 7       # bakma icin min ARDISIK frame. solvePnP+onden test:
+                          # goodmax2(duz)=0 ardisik, bakma2(donuyor)=9 -> 7 ideal ayrim
 
 
 def mar_hesapla(ust, alt, sol, sag):
