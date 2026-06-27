@@ -17,8 +17,14 @@ def test_yaw_davranisi_buyuk_aci_arkaya_bakma():
 
 
 def test_yaw_davranisi_orta_aci_etrafa_bakinma():
-    # Orta yaw -> etrafa_bakinma
-    assert yaw_davranisi(35.0) == "etrafa_bakinma"
+    # Orta-buyuk yaw (kalibrasyon sonrasi esik 40) -> etrafa_bakinma
+    assert yaw_davranisi(50.0) == "etrafa_bakinma"
+
+
+def test_yaw_davranisi_normal_kafa_hareketi_yok():
+    # 35 derece artik 'normal direksiyon kafa hareketi' (esik 40) -> None
+    # Yanlis-pozitif onleme: goodmax testinde her videoda bakma uyduruyordu.
+    assert yaw_davranisi(35.0) is None
 
 
 def test_yaw_davranisi_kucuk_aci_yok():

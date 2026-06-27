@@ -17,7 +17,7 @@ Anti-cheat: saf gorsel analiz, ortam tespiti yok.
 import os
 
 from src.dms_logic import (
-    mar_hesapla, yaw_davranisi, esneme_karari, MAR_ESIK,
+    mar_hesapla, yaw_davranisi, esneme_karari, MAR_ESIK, YAW_MIN_ARDISIK,
 )
 
 # MediaPipe Face Mesh landmark indeksleri
@@ -74,8 +74,10 @@ def dms_tespit(video_path, vid_stride=VID_STRIDE):
 
         esneme_ardisik = 0
         esneme_zaman = None
-        yaw_say = {}          # etiket -> frame sayisi
-        yaw_zaman = {}        # etiket -> ilk zaman
+        # Yaw: ARDISIK sureklilik (anlik/daginik bakislari ele - precision)
+        yaw_ardisik = {}      # etiket -> mevcut ardisik frame sayisi
+        yaw_max_ardisik = {}  # etiket -> goruluen en uzun ardisik seri
+        yaw_zaman = {}        # etiket -> ilk (yeterli seri basladigi) zaman
         yaw_conf = {}         # etiket -> [orantili guven]
         tespitler = []
         idx = -1
@@ -106,12 +108,18 @@ def dms_tespit(video_path, vid_stride=VID_STRIDE):
             else:
                 esneme_ardisik = 0
 
-            # --- Yaw davranisi (arkaya/etrafa bakma) ---
+            # --- Yaw davranisi (arkaya/etrafa bakma) - ARDISIK sureklilik ---
             yaw = _yaw_tahmin(lm)
             etk = yaw_davranisi(yaw)
+            # Bu karede tetiklenen etiket disindaki tum ardisik sayaclari sifirla
+            for e in list(yaw_ardisik.keys()):
+                if e != etk:
+                    yaw_ardisik[e] = 0
             if etk:
-                yaw_say[etk] = yaw_say.get(etk, 0) + 1
-                yaw_zaman.setdefault(etk, zaman_sn)
+                if yaw_ardisik.get(etk, 0) == 0:
+                    yaw_zaman[etk] = zaman_sn   # serinin baslangic zamani
+                yaw_ardisik[etk] = yaw_ardisik.get(etk, 0) + 1
+                yaw_max_ardisik[etk] = max(yaw_max_ardisik.get(etk, 0), yaw_ardisik[etk])
                 yaw_conf.setdefault(etk, []).append(min(1.0, abs(yaw) / 90.0))
 
         cap.release()
@@ -124,9 +132,9 @@ def dms_tespit(video_path, vid_stride=VID_STRIDE):
                 "kategori": "sofor_eylemi", "etiket": "esneme",
                 "confidence_score": 0.7,
             })
-        # Karar: yaw davranislari (min sureklilik + ortalama guven)
-        for etk, sayi in yaw_say.items():
-            if sayi >= 3:   # anlik bakisi ele
+        # Karar: yaw davranislari (en uzun ARDISIK seri esigi - anlik/daginik ele)
+        for etk, max_seri in yaw_max_ardisik.items():
+            if max_seri >= YAW_MIN_ARDISIK:
                 confs = yaw_conf.get(etk, [0.5])
                 tespitler.append({
                     "zaman_saniye": yaw_zaman[etk],

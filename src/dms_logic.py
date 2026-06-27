@@ -12,12 +12,14 @@ Saf fonksiyonlar (MediaPipe'tan bagimsiz) -> hizli birim test.
   - esneme_karari: MAR esik-ustu sureklilik -> esneme (konusmayi eler)
 """
 
-# Esikler (deep research + DMS literaturu referansli baslangic degerleri;
-# gercek test videosunda kalibre edilmeli)
-MAR_ESIK = 0.5            # agiz acik kabul esigi
-YAW_ARKAYA = 60.0         # |yaw| bu ustu -> arkaya_bakma
-YAW_ETRAFA = 25.0         # |yaw| bu ustu (arkaya altinda) -> etrafa_bakinma
+# Esikler (Gemini test kalibrasyonu sonrasi - yanlis-pozitif azaltma).
+# YAW_ETRAFA 25->40: normal direksiyon kafa hareketi 'bakma' sanilmasin.
+# YAW_ARKAYA 60->65: gercek arka donus icin daha emin.
+MAR_ESIK = 0.55           # agiz acik kabul esigi (konusma yanlis-pozitifi azalt)
+YAW_ARKAYA = 65.0         # |yaw| bu ustu -> arkaya_bakma
+YAW_ETRAFA = 40.0         # |yaw| bu ustu (arkaya altinda) -> etrafa_bakinma
 ESNEME_ARDISIK = 15       # MAR esik-ustu min ardisik frame -> esneme
+YAW_MIN_ARDISIK = 8       # bakma icin min ARDISIK frame (anlik bakisi ele - precision)
 
 
 def mar_hesapla(ust, alt, sol, sag):

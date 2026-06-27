@@ -45,6 +45,15 @@ except Exception:
     def plaka_crop_bul(_crop):  # model modulu yoksa stub
         return None
 
+# --- DAVRANIS KATMANI ANAHTARLARI (model-saglik denetimi sonucu) ---
+# Ezberci/leakage modelleri varsayilan KAPALI. Telefon/su zaten dengeli COCO'dan
+# gelir; bakma/esneme MediaPipe'tan. sigara (0 negatif -> interior ezberi) ve
+# statefarm (her videoya c9 basiyor) precision-yikici -> KAPALI. dms_v4 (near-dup
+# leakage) gercek dashcam'de dogrulanana kadar KAPALI. Geri acmak icin True yap.
+ENABLE_SIGARA = False
+ENABLE_STATEFARM = False
+ENABLE_DMS_ACTIONS = False   # dms_v4; gercek hold-out testi gecince True
+
 # Docker'da /app/weights; yerelde proje koku/weights. Hangisi varsa onu kullan.
 _DOCKER_W = "/app/weights"
 _LOCAL_W = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "weights")
@@ -258,26 +267,29 @@ def run_inference(video_path, weights_path=YOLO_WEIGHTS):
     except Exception as e:
         print(f"[Inference] DMS katmani atlandi: {e}")
 
-    # --- sigara_icme (fine-tune YOLOv8n; izole) ---
-    try:
-        from src.sigara import sigara_tespit
-        tespitler.extend(sigara_tespit(video_path))
-    except Exception as e:
-        print(f"[Inference] sigara katmani atlandi: {e}")
+    # --- sigara_icme (KAPALI: 0 negatif ornek -> interior ezberi, yanlis-pozitif) ---
+    if ENABLE_SIGARA:
+        try:
+            from src.sigara import sigara_tespit
+            tespitler.extend(sigara_tespit(video_path))
+        except Exception as e:
+            print(f"[Inference] sigara katmani atlandi: {e}")
 
-    # --- surucu davranisi: telefon/su/uzanma (dms_actions fine-tune; izole) ---
-    try:
-        from src.dms_actions import dms_actions_tespit
-        tespitler.extend(dms_actions_tespit(video_path))
-    except Exception as e:
-        print(f"[Inference] dms_actions katmani atlandi: {e}")
+    # --- dms_v4 davranis (KAPALI: near-dup leakage, gercek dashcam'de dogrulanmadi) ---
+    if ENABLE_DMS_ACTIONS:
+        try:
+            from src.dms_actions import dms_actions_tespit
+            tespitler.extend(dms_actions_tespit(video_path))
+        except Exception as e:
+            print(f"[Inference] dms_actions katmani atlandi: {e}")
 
-    # --- YEDEK: State Farm davranis teyidi (classification; izole, dedup birlestirir) ---
-    try:
-        from src.statefarm import statefarm_tespit
-        tespitler.extend(statefarm_tespit(video_path))
-    except Exception as e:
-        print(f"[Inference] statefarm katmani atlandi: {e}")
+    # --- State Farm (KAPALI: her videoya c9 basiyor, ayrim yok, leakage) ---
+    if ENABLE_STATEFARM:
+        try:
+            from src.statefarm import statefarm_tespit
+            tespitler.extend(statefarm_tespit(video_path))
+        except Exception as e:
+            print(f"[Inference] statefarm katmani atlandi: {e}")
 
     # Mukerrer (kategori, etiket) tespitlerini birlestir (precision)
     tespitler = tespit_dedup(tespitler)
