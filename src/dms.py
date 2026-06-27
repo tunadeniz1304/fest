@@ -25,28 +25,41 @@ _AGIZ_UST = 13       # ust dudak ic orta
 _AGIZ_ALT = 14       # alt dudak ic orta
 _AGIZ_SOL = 61       # sol agiz kosesi
 _AGIZ_SAG = 291      # sag agiz kosesi
-_BURUN = 1           # burun ucu
-_YUZ_SOL = 234       # sol yuz kenari
-_YUZ_SAG = 454       # sag yuz kenari
 
 VID_STRIDE = 8   # DMS davranislari (esneme/bakma) saniyeler surer; 8 stride yeterli + hizli
 
+# solvePnP icin 3D yuz model noktalari (genel insan yuzu, mm benzeri olcek) ve
+# karsilik gelen MediaPipe landmark indeksleri. Basit landmark-geometri yan
+# kameralarda sasiriyordu; PnP gercek 3D oryantasyon -> kamera acisina dayanikli.
+import numpy as _np
+_MODEL_3D = _np.array([
+    [0.0, 0.0, 0.0],          # 1   burun ucu
+    [0.0, -330.0, -65.0],     # 199 cene
+    [-225.0, 170.0, -135.0],  # 33  sol goz dis kose
+    [225.0, 170.0, -135.0],   # 263 sag goz dis kose
+    [-150.0, -150.0, -125.0], # 61  sol agiz kosesi
+    [150.0, -150.0, -125.0],  # 291 sag agiz kosesi
+], dtype=_np.float64)
+_PNP_IDX = [1, 199, 33, 263, 61, 291]
 
-def _yaw_tahmin(lm):
+
+def _yaw_tahmin(lm, w, h):
     """
-    Basit yaw tahmini: burnun, yuz sol/sag kenarlarina yatay uzakliklarinin
-    oranindan kafa donusu (derece ~ -90..90). 6DRepNet yerine landmark-geometri
-    (ekstra agirlik/model gerektirmez, offline).
+    solvePnP ile yaw (kafa yatay donusu, derece). 6 landmark -> 3D-2D PnP ->
+    Rodrigues -> Euler. Landmark-geometriden cok daha dayanikli (kamera acisi).
+    Hata olursa 0.0 (= duz; yanlis-pozitif uretmez).
     """
     try:
-        sol_d = abs(lm[_BURUN].x - lm[_YUZ_SOL].x)
-        sag_d = abs(lm[_YUZ_SAG].x - lm[_BURUN].x)
-        toplam = sol_d + sag_d
-        if toplam <= 1e-6:
+        import cv2
+        p2d = _np.array([[lm[i].x * w, lm[i].y * h] for i in _PNP_IDX], dtype=_np.float64)
+        cam = _np.array([[w, 0, w / 2], [0, w, h / 2], [0, 0, 1]], dtype=_np.float64)
+        ok, rvec, _ = cv2.solvePnP(_MODEL_3D, p2d, cam, _np.zeros((4, 1)),
+                                   flags=cv2.SOLVEPNP_ITERATIVE)
+        if not ok:
             return 0.0
-        # oran 0.5 -> duz; 0'a/1'e yaklasinca yana doner
-        oran = sol_d / toplam
-        return (oran - 0.5) * 180.0   # -90..+90 yaklasik
+        rmat, _ = cv2.Rodrigues(rvec)
+        angles, _, _, _, _, _ = cv2.RQDecomp3x3(rmat)
+        return float(angles[1])   # y ekseni = yaw
     except Exception:
         return 0.0
 
@@ -89,6 +102,7 @@ def dms_tespit(video_path, vid_stride=VID_STRIDE):
             if idx % vid_stride != 0:
                 continue
             zaman_sn = round(idx / fps, 2)
+            f_h, f_w = frame.shape[:2]
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             res = face_mesh.process(rgb)
             if not res.multi_face_landmarks:
@@ -109,7 +123,7 @@ def dms_tespit(video_path, vid_stride=VID_STRIDE):
                 esneme_ardisik = 0
 
             # --- Yaw davranisi (arkaya/etrafa bakma) - ARDISIK sureklilik ---
-            yaw = _yaw_tahmin(lm)
+            yaw = _yaw_tahmin(lm, f_w, f_h)
             etk = yaw_davranisi(yaw)
             # Bu karede tetiklenen etiket disindaki tum ardisik sayaclari sifirla
             for e in list(yaw_ardisik.keys()):
