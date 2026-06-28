@@ -88,13 +88,37 @@ def negatif_orani(ds_root):
 print("yardimcilar hazir")
 """))
 
+cells.append(md("""## 4b. (Opsiyonel) Kaggle DMS seti analizi — habbas11 (Apache 2.0)
+
+Kaggle: kaggle.com/datasets/habbas11/dms-driver-monitoring-system — sigara+kemer+göz+telefon, Apache 2.0.
+Drive'a `dms-kaggle.zip` koyduysan: sınıfları + negatif oranı + formatı otomatik raporlar.
+(Negatif sınıf içeriyorsa altın değerinde — ADB'nin %0 negatif sorununu çözer.)"""))
+cells.append(code("""dms_k = cikar('dms-kaggle.zip', 'dms_kaggle')
+if dms_k:
+    # Yapiyi otomatik analiz et: YOLO mu (data.yaml) yoksa classification mi (klasor=sinif)
+    yk = yaml_bul(dms_k)
+    if yk:
+        with open(yk) as f: kcfg = yaml.safe_load(f)
+        print("YOLO-detection. Siniflar:", kcfg.get('names'))
+        no = negatif_orani(os.path.dirname(yk))
+        if no: print(f"Negatif oran: %{no[2]}")
+    else:
+        # classification: train/<sinif>/ klasor yapisi
+        alt = glob.glob(f'{dms_k}/**/train', recursive=True) or glob.glob(f'{dms_k}/*')
+        for t in alt[:1]:
+            siniflar = [os.path.basename(d) for d in glob.glob(f'{t}/*') if os.path.isdir(d)]
+            print(f"Classification gorunuyor. Siniflar: {siniflar}")
+            print(">>> 'safe'/'normal'/'no_*' iceren sinif = NEGATIF kaynagi olarak kullanilabilir")
+    print("NOT: Bu seti Claude'a raporla - notebook'a en uygun entegrasyonu o ekleyecek.")
+"""))
+
 cells.append(md("""## 5. SİGARA + KEMER — Abnormal Driver Behaviour (CC BY 4.0)
 
 Roboflow: universe.roboflow.com/university-exrks/abnormal-driver-behaviour
 Sınıflar: Phone, Cigarette, Drinking, Seatbelt, Eating → biz Cigarette + Seatbelt kullanacağız.
+⚠️ Bu set %0 negatif → 5b'deki negatif enjeksiyon ŞART.
 
-**ÖNEMLİ:** İndirirken Roboflow'da "YOLOv8" formatı + mümkünse negatif/background kareler dahil seç.
-İndirilen zip'i Drive'a `abnormal-driver-behaviour.zip` adıyla koy."""))
+**ÖNEMLİ:** İndirirken Roboflow'da "YOLOv8" formatı seç. Drive'a `abnormal-driver-behaviour.zip` koy."""))
 cells.append(code("""ds = cikar('abnormal-driver-behaviour.zip', 'adb')
 if ds:
     yp = yaml_bul(ds)
