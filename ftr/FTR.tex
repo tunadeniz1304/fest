@@ -5,13 +5,13 @@
 % =====================================================================
 \documentclass[onecolumn,11pt]{IEEEtran}
 
-% --- Turkce + font (XeLaTeX) ---
+% --- Türkçe + font (XeLaTeX) ---
 \usepackage{fontspec}
 \usepackage{polyglossia}
 \setdefaultlanguage{turkish}
 \setmainfont{Latin Modern Roman}
 
-% --- Tablo, gorsel, link, matematik ---
+% --- Tablo, görsel, link, matematik ---
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{tabularx}
@@ -27,160 +27,160 @@
 
 \begin{document}
 
-\title{5G \& Yapay Zeka ile Akilli Yol Guvenligi:\\
-Cevrim-Disi, Moduler ve Yanlis-Pozitif-Dayanikli\\ Bir Yol Guvenligi Cikarim Sistemi}
+\title{5G \& Yapay Zekâ ile Akıllı Yol Güvenliği:\\
+Çevrim-Dışı, Modüler ve Yanlış-Pozitif-Dayanıklı\\ Bir Yol Güvenliği Çıkarım Sistemi}
 
 \author{
-\IEEEauthorblockN{Takim Adi: \PH{takim adi}}
-\IEEEauthorblockA{Takim ID: \PH{id} \quad Basvuru ID: \PH{basvuru id}\\
-TEKNOFEST 2026 -- Final Tasarim Raporu}
+\IEEEauthorblockN{Takım Adı: SynchAgent}
+\IEEEauthorblockA{Takım ID: 998490 \quad Başvuru ID: 5141062\\
+TEKNOFEST 2026 -- Final Tasarım Raporu}
 }
 
 \maketitle
 
 \begin{abstract}
-Bu calismada, yol kenari (MOBESE) ve arac-ici (in-cabin) kamera akislarindan
-yol guvenligini tehdit eden durumlari \textbf{cevrim-disi (offline)} tespit eden,
-moduler bir bilgisayarli goru sistemi sunulmaktadir. Sistem; arac tipi/renk/plaka
-tanima, surucu davranis analizi ve nesne/yolcu tespiti olmak uzere \PH{N} etiket
-uretir. Calismanin ayirt edici katkisi, surucu-izleme veri setlerinde yaygin olan
-\textbf{asiri-ogrenme (overfitting) ve veri sizintisini (data leakage)} acikca
-ele almasi; dengeli veri, dogru dogrulama protokolu ve gercek-video tabanli
-yanlis-pozitif analizi ile guvenilirligi kanitlamasidir. Sistem Tesla T4 GPU,
-$<$8\,GB imaj ve 10\,dk sure kisitlarina uygundur.
+Bu çalışmada, yol kenarı (MOBESE) ve araç-içi (in-cabin) kamera akışlarından
+yol güvenliğini tehdit eden durumları \textbf{çevrim-dışı (offline)} tespit eden,
+modüler bir bilgisayarlı görü sistemi sunulmaktadır. Sistem; araç tipi/renk/plaka
+tanıma, sürücü davranış analizi ve nesne/yolcu tespiti olmak üzere \PH{N} etiket
+üretir. Çalışmanın ayırt edici katkısı, sürücü-izleme veri setlerinde yaygın olan
+\textbf{aşırı-öğrenme (overfitting) ve veri sızıntısını (data leakage)} açıkça
+ele alması; dengeli veri, doğru doğrulama protokolü ve gerçek-video tabanlı
+yanlış-pozitif analizi ile güvenilirliği kanıtlamasıdır. Sistem Tesla T4 GPU,
+$<$8\,GB imaj ve 10\,dk süre kısıtlarına uygundur.
 \end{abstract}
 
 \begin{IEEEkeywords}
-surucu izleme sistemi, nesne tespiti, YOLOv8, asiri-ogrenme, veri dengeleme,
-cevrim-disi cikarim, yol guvenligi
+sürücü izleme sistemi, nesne tespiti, YOLOv8, aşırı-öğrenme, veri dengeleme,
+çevrim-dışı çıkarım, yol güvenliği
 \end{IEEEkeywords}
 
 % =====================================================================
-\section{Proje Ozeti (5 Puan)}
+\section{Proje Özeti (5 Puan)}
 % =====================================================================
-Bu proje kapsaminda, yol kenari ve arac-ici kamera akislarindan yol guvenligini
-tehdit eden durumlari gercek zamanli tespit eden, \textbf{moduler ve cevrim-disi
-calisan} bir bilgisayarli goru sistemi gelistirilmistir. Sistem; arac
-tipi/renk/plaka tanima, surucu davranis analizi (telefon kullanma, su icme,
-esneme, yana/arkaya bakma, sigara icme, emniyet kemeri ihlali), yolcu konum
-tespiti, slalom ve acik-kelime nesne tespiti (\texttt{teknocan}) olmak uzere
-\PH{N} farkli etiketi \texttt{results.json} semasina birebir uyumlu uretir.
+Bu proje kapsamında, yol kenarı ve araç-içi kamera akışlarından yol güvenliğini
+tehdit eden durumları gerçek zamanlı tespit eden, \textbf{modüler ve çevrim-dışı
+çalışan} bir bilgisayarlı görü sistemi geliştirilmiştir. Sistem; araç
+tipi/renk/plaka tanıma, sürücü davranış analizi (telefon kullanma, su içme,
+esneme, yana/arkaya bakma, sigara içme, emniyet kemeri ihlali), yolcu konum
+tespiti, slalom ve açık-kelime nesne tespiti (\texttt{teknocan}) olmak üzere
+\PH{N} farklı etiketi \texttt{results.json} şemasına birebir uyumlu üretir.
 
-Tasarim, yarismanin Tesla T4 GPU, $<$8\,GB imaj ve 10\,dakika sure kisitlarina
-uygundur. Sistemin ayirt edici yani \textbf{asiri-ogrenme ve veri sizinti
-farkindaligidir}: modeller dengeli veri ile egitilmis, gercek videolarda
-yanlis-pozitif kontrolu yapilarak guvenilirligi kanitlanmistir.
+Tasarım, yarışmanın Tesla T4 GPU, $<$8\,GB imaj ve 10\,dakika süre kısıtlarına
+uygundur. Sistemin ayırt edici yanı \textbf{aşırı-öğrenme ve veri sızıntısı
+farkındalığıdır}: modeller dengeli veri ile eğitilmiş, gerçek videolarda
+yanlış-pozitif kontrolü yapılarak güvenilirliği kanıtlanmıştır.
 
 % =====================================================================
-\section{Veri Seti Olusturulmasi (20 Puan)}
+\section{Veri Seti Oluşturulması (20 Puan)}
 % =====================================================================
-Komite ornek video disinda egitim verisi saglamadigindan, modeller
-\textbf{acik kaynakli, ticari kullanima uygun lisansli} veri setleriyle
-egitilmistir (Tablo~\ref{tab:veri}).
+Komite örnek video dışında eğitim verisi sağlamadığından, modeller
+\textbf{açık kaynaklı, ticari kullanıma uygun lisanslı} veri setleriyle
+eğitilmiştir (Tablo~\ref{tab:veri}).
 
 \begin{table}[h]
 \centering
-\caption{Egitimde kullanilan acik kaynak veri setleri.}
+\caption{Eğitimde kullanılan açık kaynak veri setleri.}
 \label{tab:veri}
 \small
 \begin{tabularx}{\columnwidth}{l l c l}
 \toprule
-\textbf{Gorev} & \textbf{Veri Seti} & \textbf{Gorsel} & \textbf{Lisans} \\
+\textbf{Görev} & \textbf{Veri Seti} & \textbf{Görsel} & \textbf{Lisans} \\
 \midrule
-Surucu davranisi & Kaggle DMS (habbas11) & 5957 & Apache 2.0 \\
-Arac rengi & VCoR & $\sim$10500 & CC BY 4.0 \\
+Sürücü davranışı & Kaggle DMS (habbas11) & 5957 & Apache 2.0 \\
+Araç rengi & VCoR & $\sim$10500 & CC BY 4.0 \\
 Plaka & License Plate Recog. & 98798 & CC BY 4.0 \\
-Negatif (denge) & State Farm c0 & 2489 & yarisma \\
-Nesne omurgasi & COCO (YOLOv8m) & -- & -- \\
+Negatif (denge) & State Farm c0 & 2489 & yarışma \\
+Nesne omurgası & COCO (YOLOv8m) & -- & -- \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 \subsection{Veri Dengeleme (Data Balancing)}
-On calismalarimizda, yalnizca pozitif ornek iceren veri setleriyle egitilen
-modellerin \textbf{``arac-ici sahne = ihlal'' kisayolunu ogrenerek} temiz
-videolarda dahi yuksek guvenle yanlis-pozitif urettigi tespit edilmistir (State
-Farm 2016 yarismasinda belgelenmis bilinen bir tuzak). Cozum olarak egitim setine
-\textbf{State Farm c0 (guvenli surus, 2489 gorsel)} ve temiz surucu video kareleri
-\textbf{bos-etiket (background)} olarak eklenmis; toplam egitim verisinin
-\textbf{\%31'i negatif} yapilmistir. Boylece model gercek nesneyi ogrenmeye
-zorlanmistir.
+Ön çalışmalarımızda, yalnızca pozitif örnek içeren veri setleriyle eğitilen
+modellerin \textbf{``araç-içi sahne = ihlal'' kısayolunu öğrenerek} temiz
+videolarda dahi yüksek güvenle yanlış-pozitif ürettiği tespit edilmiştir (State
+Farm 2016 yarışmasında belgelenmiş bilinen bir tuzak). Çözüm olarak eğitim setine
+\textbf{State Farm c0 (güvenli sürüş, 2489 görsel)} ve temiz sürücü video kareleri
+\textbf{boş-etiket (background)} olarak eklenmiş; toplam eğitim verisinin
+\textbf{\%31'i negatif} yapılmıştır. Böylece model gerçek nesneyi öğrenmeye
+zorlanmıştır.
 
-\subsection{Veri Artirma (Data Augmentation)}
-Model gurbuzlugu icin domain-randomization tabanli artirma uygulanmistir:
-HSV/parlaklik/kontrast jitter (gece/gunduz/IR), Mosaic, MixUp, rastgele
-donme/oteleme/olcekleme ve rastgele silme (occlusion). Bu, sartnamedeki farkli
-FPS, cozunurluk ve isik kosullarina dayaniklilik gereksinimini hedefler.
+\subsection{Veri Artırma (Data Augmentation)}
+Model gürbüzlüğü için domain-randomization tabanlı artırma uygulanmıştır:
+HSV/parlaklık/kontrast jitter (gece/gündüz/IR), Mosaic, MixUp, rastgele
+döndürme/öteleme/ölçekleme ve rastgele silme (occlusion). Bu, şartnamedeki farklı
+FPS, çözünürlük ve ışık koşullarına dayanıklılık gereksinimini hedefler.
 
-\subsection{Egitim/Dogrulama/Test Ayrimi}
-\PH{train/val/test oranlari ve gerekce}. Asiri-ogrenmeyi onlemek icin nihai
-dogrulama \textbf{egitimde hic kullanilmayan gercek videolarla} yapilmistir.
+\subsection{Eğitim/Doğrulama/Test Ayrımı}
+\PH{train/val/test oranlari ve gerekce}. Aşırı-öğrenmeyi önlemek için nihai
+doğrulama \textbf{eğitimde hiç kullanılmayan gerçek videolarla} yapılmıştır.
 
 % =====================================================================
-\section{Yapay Zeka Cozumu (50 Puan)}
+\section{Yapay Zekâ Çözümü (50 Puan)}
 % =====================================================================
 
 \subsection{Problemin Analizi (15 Puan)}
 \begin{itemize}[nosep,leftmargin=*]
-  \item \textbf{Asiri-ogrenme / veri sizintisi:} Surucu veri setleri video
-        kareleridir; komsu kareler train/val'e dagilirsa dogrulama skoru
-        yaniltici sekilde sisar (\%99 gorunup gercekte \%38 olabilir). Cozum:
-        dengeli veri + gercek-video dogrulamasi.
-  \item \textbf{Kamera acisi belirsizligi:} DMS kamerasi onden veya yan olabilir.
-        Basit landmark-geometri yaw tahmini profilde basarisiz oldugundan
-        \textbf{appearance-tabanli 6DRepNet} (3B kafa pozu) + per-video referans
-        kalibrasyonuna gecilmistir.
-  \item \textbf{Isik degisimi, hareket bulanikligi, okluzyon:} domain-randomization
-        artirma + zamansal oylama (track-level voting) ile ele alinmistir.
-  \item \textbf{Yanlis-pozitif:} Ezberci modeller devre disi birakilmis, guvenilir
-        dengeli kaynaklara (COCO) oncelik verilmistir.
+  \item \textbf{Aşırı-öğrenme / veri sızıntısı:} Sürücü veri setleri video
+        kareleridir; komşu kareler train/val'e dağılırsa doğrulama skoru
+        yanıltıcı şekilde şişer (\%99 görünüp gerçekte \%38 olabilir). Çözüm:
+        dengeli veri + gerçek-video doğrulaması.
+  \item \textbf{Kamera açısı belirsizliği:} DMS kamerası önden veya yan olabilir.
+        Basit landmark-geometri yaw tahmini profilde başarısız olduğundan
+        \textbf{appearance-tabanlı 6DRepNet} (3B kafa pozu) + per-video referans
+        kalibrasyonuna geçilmiştir.
+  \item \textbf{Işık değişimi, hareket bulanıklığı, oklüzyon:} domain-randomization
+        artırma + zamansal oylama (track-level voting) ile ele alınmıştır.
+  \item \textbf{Yanlış-pozitif:} Ezberci modeller devre dışı bırakılmış, güvenilir
+        dengeli kaynaklara (COCO) öncelik verilmiştir.
 \end{itemize}
 
-\subsection{Cozum Mimarisi (15 Puan)}
-Sistem ham videodan \texttt{results.json} ciktisina kadar moduler bir hatta
-calisir. Her katman \textbf{izole}dir: biri hata verse dahi ana akis gecerli
-cikti uretir (sartnamedeki hata-yonetimi gereksinimi).
+\subsection{Çözüm Mimarisi (15 Puan)}
+Sistem ham videodan \texttt{results.json} çıktısına kadar modüler bir hatta
+çalışır. Her katman \textbf{izole}dir: biri hata verse dahi ana akış geçerli
+çıktı üretir (şartnamedeki hata-yönetimi gereksinimi).
 
 \begin{figure}[h]
 \centering
 \fbox{\parbox{0.95\columnwidth}{\centering \PH{Mimari diyagram} \\[4pt]
-\footnotesize Video $\rightarrow$ kare ornekleme ($\sim$5 FPS) $\rightarrow$
-YOLOv8m (COCO) + ByteTrack $\rightarrow$ track-level cogunluk oylama $\rightarrow$
-\{Arac: tip/renk(VCoR)/plaka(YOLO+EasyOCR) $|$ Davranis: COCO telefon-su,
+\footnotesize Video $\rightarrow$ kare örnekleme ($\sim$5 FPS) $\rightarrow$
+YOLOv8m (COCO) + ByteTrack $\rightarrow$ track-level çoğunluk oylama $\rightarrow$
+\{Araç: tip/renk(VCoR)/plaka(YOLO+EasyOCR) $|$ Davranış: COCO telefon-su,
 MediaPipe esneme/yorgunluk, 6DRepNet bakma, sigara/kemer $|$ Yolcu $|$ Slalom $|$
 teknocan\} $\rightarrow$ dedup $\rightarrow$ \texttt{results.json}}}
-\caption{Sistemin kusbakisi mimarisi.}
+\caption{Sistemin kuşbakışı mimarisi.}
 \label{fig:mimari}
 \end{figure}
 
-\subsection{Cozum Detaylari (20 Puan)}
-\textbf{Omurga ve izleme:} YOLOv8m (COCO) + ByteTrack coklu-nesne takibi. Track
-boyunca zamansal cogunluk oylamasi tek-kare yanlis-pozitifleri eler, kacan
-kareleri koprular.
+\subsection{Çözüm Detayları (20 Puan)}
+\textbf{Omurga ve izleme:} YOLOv8m (COCO) + ByteTrack çoklu-nesne takibi. Track
+boyunca zamansal çoğunluk oylaması tek-kare yanlış-pozitifleri eler, kaçan
+kareleri köprüler.
 
-\textbf{Arac analizi:} Tip (bbox oran sezgisi + COCO); renk (VCoR YOLOv8m-cls,
+\textbf{Araç analizi:} Tip (bbox oran sezgisi + COCO); renk (VCoR YOLOv8m-cls,
 15$\rightarrow$9 etiket); plaka (License Plate bbox $\rightarrow$ 4-nokta perspektif
 $\rightarrow$ EasyOCR \texttt{tr} + TR regex + karakter oylama).
 
-\textbf{Surucu davranisi:} Telefon/su/bilgisayar COCO'dan (dengeli); esneme/yorgunluk
-MediaPipe (MAR/EAR, egitimsiz); bakma 6DRepNet 3B poz + sureklilik + per-video
-referans; sigara/kemer Kaggle DMS uzerinde negatif-dengeli fine-tune YOLOv8m.
+\textbf{Sürücü davranışı:} Telefon/su/bilgisayar COCO'dan (dengeli); esneme/yorgunluk
+MediaPipe (MAR/EAR, eğitimsiz); bakma 6DRepNet 3B poz + süreklilik + per-video
+referans; sigara/kemer Kaggle DMS üzerinde negatif-dengeli fine-tune YOLOv8m.
 
-\textbf{Slalom:} ByteTrack yorungesinden yanal salinim analizi.
-\textbf{teknocan:} YOLO-World acik-kelime (gomulu embedding, cevrim-disi).
+\textbf{Slalom:} ByteTrack yörüngesinden yanal salınım analizi.
+\textbf{teknocan:} YOLO-World açık-kelime (gömülü embedding, çevrim-dışı).
 
-\textbf{Altyapi:} PyTorch + Ultralytics YOLOv8, OpenCV, MediaPipe, EasyOCR,
-6DRepNet; Docker (\texttt{nvidia/cuda:12.1.0-base-ubuntu22.04}), Tesla T4. Tum
-agirliklar imaja gomulu -- \textbf{calisma aninda internet kapali}.
+\textbf{Altyapı:} PyTorch + Ultralytics YOLOv8, OpenCV, MediaPipe, EasyOCR,
+6DRepNet; Docker (\texttt{nvidia/cuda:12.1.0-base-ubuntu22.04}), Tesla T4. Tüm
+ağırlıklar imaja gömülü -- \textbf{çalışma anında internet kapalı}.
 
 % =====================================================================
-\section{Cozumun Sinanmasi (20 Puan)}
+\section{Çözümün Sınanması (20 Puan)}
 % =====================================================================
-``Cozumumuze neden guveniyoruz?'' sorusunun yaniti asagidaki kanitlardir.
+``Çözümümüze neden güveniyoruz?'' sorusunun yanıtı aşağıdaki kanıtlardır.
 
 \begin{table}[h]
 \centering
-\caption{Egitilen modellerin dogrulama metrikleri.}
+\caption{Eğitilen modellerin doğrulama metrikleri.}
 \label{tab:metrik}
 \small
 \begin{tabularx}{\columnwidth}{l c c c X}
@@ -188,41 +188,41 @@ agirliklar imaja gomulu -- \textbf{calisma aninda internet kapali}.
 \textbf{Model} & \textbf{P} & \textbf{R} & \textbf{mAP50} & \textbf{Not} \\
 \midrule
 sigara+kemer & \PH{P} & \PH{R} & \PH{mAP} & negatif-dengeli \\
-Plaka & 0.986 & 0.955 & 0.972 & 98K gorsel \\
+Plaka & 0.986 & 0.955 & 0.972 & 98K görsel \\
 Renk (VCoR) & -- & -- & -- & top1 \%87.7 \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\subsection{Cevrim-Disi Docker Testi}
-Sistem \texttt{docker run --network none} ile (internet kapali, T4) gercek 4K
-trafik videosunda calistirilmis; gecerli \texttt{results.json} uretilmis, cokme
-yasanmamistir. Imaj \textbf{4.5\,GB} ($<$8\,GB), sure 10\,dk limitinin altindadir.
+\subsection{Çevrim-Dışı Docker Testi}
+Sistem \texttt{docker run --network none} ile (internet kapalı, T4) gerçek 4K
+trafik videosunda çalıştırılmış; geçerli \texttt{results.json} üretilmiş, çökme
+yaşanmamıştır. İmaj \textbf{4.5\,GB} ($<$8\,GB), süre 10\,dk limitinin altındadır.
 
-\subsection{Gercek Video Testi -- Yanlis-Pozitif Kanitlari}
+\subsection{Gerçek Video Testi -- Yanlış-Pozitif Kanıtları}
 \begin{table}[h]
 \centering
-\caption{Gercek videolarla yanlis/dogru-pozitif sinamasi.}
+\caption{Gerçek videolarla yanlış/doğru-pozitif sınaması.}
 \label{tab:gercek}
 \small
 \begin{tabularx}{\columnwidth}{l X l}
 \toprule
-\textbf{Video} & \textbf{Beklenen} & \textbf{Sonuc} \\
+\textbf{Video} & \textbf{Beklenen} & \textbf{Sonuç} \\
 \midrule
 goodmax (temiz) & ihlal YOK & \PH{?} \\
 badmax (ihlalli) & ihlaller & \PH{?} \\
-Gercek plaka & okuma & 03ACU808, 64EP367 (basarili) \\
+Gerçek plaka & okuma & 03ACU808, 64EP367 (başarılı) \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-\subsection{Muhendislik Kalitesi}
-\PH{N} birim testi (TDD), izole hata-yonetimli katmanlar, JSON sema dogrulayici,
-ASCII-safe etiket garantisi, ortam-tespiti iceren manipulasyon \textbf{yok}
+\subsection{Mühendislik Kalitesi}
+\PH{N} birim testi (TDD), izole hata-yönetimli katmanlar, JSON şema doğrulayıcı,
+ASCII-safe etiket garantisi, ortam-tespiti içeren manipülasyon \textbf{yok}
 (anti-cheat uyumlu).
 
 % =====================================================================
-\section{Kaynakca (5 Puan)}
+\section{Kaynakça (5 Puan)}
 % =====================================================================
 \begin{thebibliography}{9}
 \footnotesize
