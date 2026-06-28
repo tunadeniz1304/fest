@@ -29,6 +29,12 @@
 % --- Placeholder makrosu (final sayilar gelince doldur) ---
 \newcommand{\PH}[1]{{\color{red}\textbf{[#1]}}}
 
+% --- Uzun kelime/URL satir tasmasini onle (sag kenar guvenligi) ---
+\usepackage{microtype}
+\sloppy
+\hbadness=10000
+\emergencystretch=3em
+
 \begin{document}
 
 \title{5G \& Yapay Zekâ ile Akıllı Yol Güvenliği:\\
@@ -182,7 +188,7 @@ referans; sigara/kemer Kaggle DMS üzerinde negatif-dengeli fine-tune YOLOv8m.
 \textbf{teknocan:} YOLO-World açık-kelime (gömülü embedding, çevrim-dışı).
 
 \textbf{Altyapı:} PyTorch + Ultralytics YOLOv8, OpenCV, MediaPipe, EasyOCR,
-6DRepNet; Docker (\texttt{nvidia/cuda:12.1.0-base-ubuntu22.04}), Tesla T4. Tüm
+6DRepNet; Docker (\texttt{nvidia/cuda:\allowbreak 12.1.0\allowbreak -base\allowbreak -ubuntu22.04}), Tesla T4. Tüm
 ağırlıklar imaja gömülü -- \textbf{çalışma anında internet kapalı}.
 
 % =====================================================================
