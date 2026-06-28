@@ -50,9 +50,10 @@ except Exception:
 # gelir; bakma/esneme MediaPipe'tan. sigara (0 negatif -> interior ezberi) ve
 # statefarm (her videoya c9 basiyor) precision-yikici -> KAPALI. dms_v4 (near-dup
 # leakage) gercek dashcam'de dogrulanana kadar KAPALI. Geri acmak icin True yap.
-ENABLE_SIGARA = False
+ENABLE_SIGARA = False        # eski 0-negatif model (interior ezberi) - kapali
 ENABLE_STATEFARM = False
-ENABLE_DMS_ACTIONS = False   # dms_v4; gercek hold-out testi gecince True
+ENABLE_DMS_ACTIONS = False   # dms_v4; near-dup leakage - kapali
+ENABLE_DMS_KAGGLE = True     # Kaggle DMS negatif-dengeli (sigara/telefon) - ACIK
 
 # Docker'da /app/weights; yerelde proje koku/weights. Hangisi varsa onu kullan.
 _DOCKER_W = "/app/weights"
@@ -267,13 +268,21 @@ def run_inference(video_path, weights_path=YOLO_WEIGHTS):
     except Exception as e:
         print(f"[Inference] DMS katmani atlandi: {e}")
 
-    # --- sigara_icme (KAPALI: 0 negatif ornek -> interior ezberi, yanlis-pozitif) ---
+    # --- sigara_icme (eski 0-negatif model KAPALI; yerine dms_kaggle) ---
     if ENABLE_SIGARA:
         try:
             from src.sigara import sigara_tespit
             tespitler.extend(sigara_tespit(video_path))
         except Exception as e:
             print(f"[Inference] sigara katmani atlandi: {e}")
+
+    # --- sigara/telefon: Kaggle DMS negatif-dengeli model (ACIK; %90 P, ezbersiz) ---
+    if ENABLE_DMS_KAGGLE:
+        try:
+            from src.dms_kaggle import dms_kaggle_tespit
+            tespitler.extend(dms_kaggle_tespit(video_path))
+        except Exception as e:
+            print(f"[Inference] dms_kaggle katmani atlandi: {e}")
 
     # --- dms_v4 davranis (KAPALI: near-dup leakage, gercek dashcam'de dogrulanmadi) ---
     if ENABLE_DMS_ACTIONS:
