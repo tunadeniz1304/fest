@@ -6,10 +6,14 @@
 \documentclass[onecolumn,11pt]{IEEEtran}
 
 % --- Türkçe + font (XeLaTeX) ---
+% IEEE/akademik standart font = Times. TeX Gyre Termes, Times'in acik-kaynak
+% birebir karsiligidir (her LaTeX dagitiminda var, Turkce karakter destekli).
 \usepackage{fontspec}
 \usepackage{polyglossia}
 \setdefaultlanguage{turkish}
-\setmainfont{Latin Modern Roman}
+\setmainfont{TeX Gyre Termes}        % = Times New Roman (IEEE standardi)
+\setsansfont{TeX Gyre Heros}         % = Arial (basliklar/sans icin)
+\setmonofont{TeX Gyre Cursor}        % = Courier (kod/typewriter)
 
 % --- Tablo, görsel, link, matematik ---
 \usepackage{graphicx}
