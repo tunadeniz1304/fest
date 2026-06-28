@@ -4,9 +4,12 @@ weights/easyocr/
 
 # Veri ve ciktilar
 data/
-datasets/          # cikarilan egitim veri setleri (binlerce gorsel, turetilen)
-runs/              # YOLO egitim ciktilari
-*.pt               # tum agirliklar (download_weights.py / Colab ile uretilir)
+# cikarilan egitim veri setleri (binlerce gorsel, turetilen)
+datasets/
+# YOLO egitim ciktilari
+runs/
+# tum agirliklar (download_weights.py / Colab ile uretilir)
+*.pt
 *.mp4
 *.avi
 *.mov
