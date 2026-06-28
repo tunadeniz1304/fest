@@ -109,10 +109,67 @@ if ds:
             print("    bos-label .txt ekleyin veya goodmax2/goodmax videolarindan kare cikarin.")
 """))
 
-cells.append(md("""### 5b. Sigara+kemer modelini eğit (negatif-dengeli)
+cells.append(md("""### 5b. ⚠️ NEGATİF ENJEKSİYONU (kök sorun fix — eğitimden ÖNCE çalıştır!)
 
-data.yaml'i absolute yola çevir + yalnızca Cigarette/Seatbelt'e remap (opsiyonel) veya tüm sınıflarla eğit.
-Burada TÜM sınıflarla eğitip pipeline'da sadece sigara/kemer'i okuyacağız (basit + güvenli)."""))
+Set %0 background (hepsi ihlalli) → model "araç içi = ihlal" ezberler, temiz videoda yanlış-pozitif.
+ÇÖZÜM: train/'e temiz sürücü görselleri **boş .txt label** ile ekle (YOLOv8 background image).
+İKİ kaynak: (A) harici temiz-sürücü zip'leri, (B) kendi temiz videolarımızdan kare.
+Hedef: toplam train'in **%30-40'ı negatif**."""))
+cells.append(code("""import cv2
+def negatif_ekle_klasor(kaynak_img_dir, train_root, etiket="ext"):
+    \"\"\"Bir klasordeki gorselleri bos-label ile train'e ekler (background).\"\"\"
+    if not os.path.isdir(kaynak_img_dir): return 0
+    n = 0
+    for img in glob.glob(f'{kaynak_img_dir}/**/*.jpg', recursive=True) + \\
+               glob.glob(f'{kaynak_img_dir}/**/*.png', recursive=True):
+        ad = f"neg_{etiket}_{n}"
+        shutil.copy(img, f'{train_root}/images/{ad}.jpg')
+        open(f'{train_root}/labels/{ad}.txt', 'w').close()  # BOS label = negatif
+        n += 1
+    return n
+
+def negatif_ekle_video(video_yollari, train_root, her_n_kare=20, etiket="vid"):
+    \"\"\"Temiz surucu videolarindan kare cikarip bos-label ile ekler.\"\"\"
+    n = 0
+    for v in video_yollari:
+        cap = cv2.VideoCapture(v); i = -1
+        while True:
+            ret, fr = cap.read()
+            if not ret: break
+            i += 1
+            if i % her_n_kare: continue
+            ad = f"neg_{etiket}_{n}"
+            cv2.imwrite(f'{train_root}/images/{ad}.jpg', fr)
+            open(f'{train_root}/labels/{ad}.txt', 'w').close()
+            n += 1
+        cap.release()
+    return n
+
+if ds and yp:
+    root = os.path.dirname(yp)
+    tr = f'{root}/train'
+    eklenen = 0
+    # (A) Harici temiz-surucu setleri (Drive'a koyduysan: temiz_surucu.zip)
+    ext = cikar('temiz_surucu.zip', 'temiz_surucu')
+    if ext:
+        eklenen += negatif_ekle_klasor(ext, tr, "ext")
+    # (B) Kendi temiz videolarimiz (goodmax2/goodmax/badmax2 + temiz Pexels)
+    temiz_vids = []
+    for pat in ['geminitest*/goodmax*.mp4', 'geminitest*/badmax2.mp4', '*.mp4']:
+        temiz_vids += glob.glob(f'{DRIVE}/{pat}')
+    temiz_vids = list(dict.fromkeys(temiz_vids))[:8]  # tekrar yok, max 8 video
+    if temiz_vids:
+        eklenen += negatif_ekle_video(temiz_vids, tr, her_n_kare=20, etiket="vid")
+    print(f"Eklenen negatif kare: {eklenen}")
+    no = negatif_orani(root)
+    if no: print(f"YENI negatif oran: {no[0]}/{no[1]} = %{no[2]}  (hedef %30-40)")
+    if not no or no[2] < 25:
+        print("!!! Negatif hala dusuk - Drive'a temiz_surucu.zip ekle veya temiz video koy.")
+"""))
+
+cells.append(md("""### 5c. Sigara+kemer modelini eğit (negatif-dengeli, domain-randomization)
+
+5 sınıfla eğitilir; pipeline'da sadece Cigarette→sigara_icme, Seatbelt→emniyet_kemeri_ihlali okunur."""))
 cells.append(code("""if ds and yp:
     root = os.path.dirname(yp)
     val_dir = 'valid' if os.path.isdir(f'{root}/valid/images') else 'val'
