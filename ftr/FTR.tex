@@ -69,12 +69,12 @@ sürücü izleme sistemi, nesne tespiti, YOLOv8, aşırı-öğrenme, veri dengel
 \section{Proje Özeti (5 Puan)}
 % =====================================================================
 Bu proje kapsamında, yol kenarı ve araç-içi kamera akışlarından yol güvenliğini
-tehdit eden durumları gerçek zamanlı tespit eden, \textbf{modüler ve çevrim-dışı
+tehdit eden durumları tespit eden, \textbf{modüler ve çevrim-dışı (batch)
 çalışan} bir bilgisayarlı görü sistemi geliştirilmiştir. Sistem; araç
 tipi/renk/plaka tanıma, sürücü davranış analizi (telefon kullanma, su içme,
-esneme, yana/arkaya bakma, sigara içme, emniyet kemeri ihlali), yolcu konum
+esneme, yana/arkaya bakma, sigara içme), yolcu konum
 tespiti, slalom ve açık-kelime nesne tespiti (\texttt{teknocan}) olmak üzere
-13 farklı etiketi \texttt{results.json} şemasına birebir uyumlu üretir.
+sürücü güvenliği etiketlerini \texttt{results.json} şemasına birebir uyumlu üretir.
 
 Tasarım, yarışmanın Tesla T4 GPU, $<$8\,GB imaj ve 10\,dakika süre kısıtlarına
 uygundur. Sistemin ayırt edici yanı \textbf{aşırı-öğrenme ve veri sızıntısı
@@ -139,9 +139,9 @@ olarak eklenmiştir. Aşırı-öğrenmeyi önlemek için nihai doğrulama
         yanıltıcı şekilde şişer (\%99 görünüp gerçekte \%38 olabilir). Çözüm:
         dengeli veri + gerçek-video doğrulaması.
   \item \textbf{Kamera açısı belirsizliği:} DMS kamerası önden veya yan olabilir.
-        Basit landmark-geometri yaw tahmini profilde başarısız olduğundan
-        \textbf{appearance-tabanlı 6DRepNet} (3B kafa pozu) + per-video referans
-        kalibrasyonuna geçilmiştir.
+        \textbf{MediaPipe Face Mesh landmark + solvePnP (3B kafa-pozu geometrisi)}
+        ile yaw tahmini yapılmış; ardışık-süreklilik şartı ve eşik kalibrasyonu ile
+        yanlış-pozitifler azaltılmıştır.
   \item \textbf{Işık değişimi, hareket bulanıklığı, oklüzyon:} domain-randomization
         artırma + zamansal oylama (track-level voting) ile ele alınmıştır.
   \item \textbf{Yanlış-pozitif:} Ezberci modeller devre dışı bırakılmış, güvenilir
@@ -181,14 +181,14 @@ kareleri köprüler.
 $\rightarrow$ EasyOCR \texttt{tr} + TR regex + karakter oylama).
 
 \textbf{Sürücü davranışı:} Telefon/su/bilgisayar COCO'dan (dengeli); esneme/yorgunluk
-MediaPipe (MAR/EAR, eğitimsiz); bakma 6DRepNet 3B poz + süreklilik + per-video
-referans; sigara/kemer Kaggle DMS üzerinde negatif-dengeli fine-tune YOLOv8m.
+MediaPipe (MAR/EAR, eğitimsiz); bakma MediaPipe landmark + solvePnP 3B poz +
+ardışık-süreklilik; sigara Kaggle DMS üzerinde negatif-dengeli fine-tune YOLOv8m.
 
 \textbf{Slalom:} ByteTrack yörüngesinden yanal salınım analizi.
 \textbf{teknocan:} YOLO-World açık-kelime (gömülü embedding, çevrim-dışı).
 
 \textbf{Altyapı:} PyTorch + Ultralytics YOLOv8, OpenCV, MediaPipe, EasyOCR,
-6DRepNet; Docker (\texttt{nvidia/cuda:\allowbreak 12.1.0\allowbreak -base\allowbreak -ubuntu22.04}), Tesla T4. Tüm
+solvePnP; Docker (\texttt{nvidia/cuda:\allowbreak 12.1.0\allowbreak -base\allowbreak -ubuntu22.04}), Tesla T4. Tüm
 ağırlıklar imaja gömülü -- \textbf{çalışma anında internet kapalı}.
 
 % =====================================================================
@@ -205,7 +205,7 @@ ağırlıklar imaja gömülü -- \textbf{çalışma anında internet kapalı}.
 \toprule
 \textbf{Model} & \textbf{P} & \textbf{R} & \textbf{mAP50} & \textbf{Not} \\
 \midrule
-sigara+kemer & 0.902 & 0.867 & 0.911 & negatif-dengeli \\
+sigara (DMS) & 0.902 & 0.867 & 0.911 & negatif-dengeli \\
 Plaka & 0.986 & 0.955 & 0.972 & 98K görsel \\
 Renk (VCoR) & -- & -- & -- & top1 \%87.7 \\
 \bottomrule
@@ -251,7 +251,6 @@ ASCII-safe etiket garantisi, ortam-tespiti içeren manipülasyon \textbf{yok}
 \bibitem{statefarm} State Farm Distracted Driver Detection, Kaggle, 2016.
 \bibitem{yolov8} G. Jocher et al., ``Ultralytics YOLOv8,'' 2023.
 \bibitem{bytetrack} Y. Zhang et al., ``ByteTrack: Multi-Object Tracking by Associating Every Detection Box,'' ECCV, 2022.
-\bibitem{6drepnet} T. Hempel et al., ``6D Rotation Representation for Unconstrained Head Pose Estimation,'' ICIP, 2022.
 \bibitem{mediapipe} C. Lugaresi et al., ``MediaPipe: A Framework for Building Perception Pipelines,'' 2019.
 \bibitem{yoloworld} T. Cheng et al., ``YOLO-World: Real-Time Open-Vocabulary Object Detection,'' CVPR, 2024.
 \bibitem{easyocr} JaidedAI, ``EasyOCR,'' Apache 2.0.
