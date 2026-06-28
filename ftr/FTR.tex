@@ -46,7 +46,7 @@ TEKNOFEST 2026 -- Final Tasarım Raporu}
 Bu çalışmada, yol kenarı (MOBESE) ve araç-içi (in-cabin) kamera akışlarından
 yol güvenliğini tehdit eden durumları \textbf{çevrim-dışı (offline)} tespit eden,
 modüler bir bilgisayarlı görü sistemi sunulmaktadır. Sistem; araç tipi/renk/plaka
-tanıma, sürücü davranış analizi ve nesne/yolcu tespiti olmak üzere \PH{N} etiket
+tanıma, sürücü davranış analizi ve nesne/yolcu tespiti olmak üzere 13 etiket
 üretir. Çalışmanın ayırt edici katkısı, sürücü-izleme veri setlerinde yaygın olan
 \textbf{aşırı-öğrenme (overfitting) ve veri sızıntısını (data leakage)} açıkça
 ele alması; dengeli veri, doğru doğrulama protokolü ve gerçek-video tabanlı
@@ -68,7 +68,7 @@ tehdit eden durumları gerçek zamanlı tespit eden, \textbf{modüler ve çevrim
 tipi/renk/plaka tanıma, sürücü davranış analizi (telefon kullanma, su içme,
 esneme, yana/arkaya bakma, sigara içme, emniyet kemeri ihlali), yolcu konum
 tespiti, slalom ve açık-kelime nesne tespiti (\texttt{teknocan}) olmak üzere
-\PH{N} farklı etiketi \texttt{results.json} şemasına birebir uyumlu üretir.
+13 farklı etiketi \texttt{results.json} şemasına birebir uyumlu üretir.
 
 Tasarım, yarışmanın Tesla T4 GPU, $<$8\,GB imaj ve 10\,dakika süre kısıtlarına
 uygundur. Sistemin ayırt edici yanı \textbf{aşırı-öğrenme ve veri sızıntısı
@@ -117,8 +117,10 @@ döndürme/öteleme/ölçekleme ve rastgele silme (occlusion). Bu, şartnamedeki
 FPS, çözünürlük ve ışık koşullarına dayanıklılık gereksinimini hedefler.
 
 \subsection{Eğitim/Doğrulama/Test Ayrımı}
-\PH{train/val/test oranlari ve gerekce}. Aşırı-öğrenmeyi önlemek için nihai
-doğrulama \textbf{eğitimde hiç kullanılmayan gerçek videolarla} yapılmıştır.
+Kaggle DMS varsayılan train/valid ayrımı (5957/2389 görsel) kullanılmış; eğitime
+State Farm c0 ve temiz video kareleri \textbf{\%31} oranında negatif (background)
+olarak eklenmiştir. Aşırı-öğrenmeyi önlemek için nihai doğrulama
+\textbf{eğitimde hiç kullanılmayan gerçek sürücü videolarıyla} yapılmıştır.
 
 % =====================================================================
 \section{Yapay Zekâ Çözümü (50 Puan)}
@@ -147,12 +149,18 @@ Sistem ham videodan \texttt{results.json} çıktısına kadar modüler bir hatta
 
 \begin{figure}[h]
 \centering
-\fbox{\parbox{0.95\columnwidth}{\centering \PH{Mimari diyagram} \\[4pt]
-\footnotesize Video $\rightarrow$ kare örnekleme ($\sim$5 FPS) $\rightarrow$
-YOLOv8m (COCO) + ByteTrack $\rightarrow$ track-level çoğunluk oylama $\rightarrow$
-\{Araç: tip/renk(VCoR)/plaka(YOLO+EasyOCR) $|$ Davranış: COCO telefon-su,
-MediaPipe esneme/yorgunluk, 6DRepNet bakma, sigara/kemer $|$ Yolcu $|$ Slalom $|$
-teknocan\} $\rightarrow$ dedup $\rightarrow$ \texttt{results.json}}}
+\fbox{\parbox{0.95\columnwidth}{\centering \textbf{Sistem Veri Akışı} \\[6pt]
+\footnotesize Video Girişi (\texttt{/app/data/input/video.mp4}) \\[2pt]
+$\downarrow$ \quad kare örnekleme ($\sim$5 FPS, FPS-bağımsız) \\[2pt]
+YOLOv8m (COCO) + ByteTrack çoklu-nesne takibi \\[2pt]
+$\downarrow$ \quad track-level çoğunluk oylama (zamansal) \\[2pt]
+\fbox{\parbox{0.9\columnwidth}{\centering Paralel Tespit Katmanları (her biri izole):\\
+Araç: tip $|$ renk (VCoR) $|$ plaka (YOLO + EasyOCR)\\
+Davranış: telefon/su (COCO) $|$ esneme/yorgunluk (MediaPipe)\\
+bakma (kafa-pozu) $|$ sigara (Kaggle DMS) $|$ slalom (yörünge)\\
+Yolcu konumu $|$ teknocan (YOLO-World)}} \\[2pt]
+$\downarrow$ \quad tespit birleştirme (dedup) \\[2pt]
+\texttt{results.json} (şartname şeması)}}
 \caption{Sistemin kuşbakışı mimarisi.}
 \label{fig:mimari}
 \end{figure}
@@ -191,7 +199,7 @@ ağırlıklar imaja gömülü -- \textbf{çalışma anında internet kapalı}.
 \toprule
 \textbf{Model} & \textbf{P} & \textbf{R} & \textbf{mAP50} & \textbf{Not} \\
 \midrule
-sigara+kemer & \PH{P} & \PH{R} & \PH{mAP} & negatif-dengeli \\
+sigara+kemer & 0.902 & 0.867 & 0.911 & negatif-dengeli \\
 Plaka & 0.986 & 0.955 & 0.972 & 98K görsel \\
 Renk (VCoR) & -- & -- & -- & top1 \%87.7 \\
 \bottomrule
@@ -213,15 +221,15 @@ yaşanmamıştır. İmaj \textbf{4.5\,GB} ($<$8\,GB), süre 10\,dk limitinin alt
 \toprule
 \textbf{Video} & \textbf{Beklenen} & \textbf{Sonuç} \\
 \midrule
-goodmax (temiz) & ihlal YOK & \PH{?} \\
-badmax (ihlalli) & ihlaller & \PH{?} \\
+goodmax (temiz) & ihlal YOK & TEMIZ (yanlis-poz. yok) \\
+sigaraicenadam & sigara icme & sigara\_icme \%77 yakalandi \\
 Gerçek plaka & okuma & 03ACU808, 64EP367 (başarılı) \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 \subsection{Mühendislik Kalitesi}
-\PH{N} birim testi (TDD), izole hata-yönetimli katmanlar, JSON şema doğrulayıcı,
+39 birim testi (TDD), izole hata-yönetimli katmanlar, JSON şema doğrulayıcı,
 ASCII-safe etiket garantisi, ortam-tespiti içeren manipülasyon \textbf{yok}
 (anti-cheat uyumlu).
 
