@@ -1,0 +1,256 @@
+% =====================================================================
+% TEKNOFEST 2026 - 5G & Yapay Zeka ile Akilli Yol Guvenligi
+% FINAL TASARIM RAPORU (FTR)
+% Overleaf'te derle: Menu -> Compiler -> XeLaTeX (Turkce karakterler icin)
+% =====================================================================
+\documentclass[11pt,a4paper]{article}
+
+% --- Turkce + font (XeLaTeX) ---
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setdefaultlanguage{turkish}
+\setmainfont{Latin Modern Roman}
+
+% --- Sayfa, tablo, gorsel, link ---
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{enumitem}
+\usepackage[colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue]{hyperref}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf}
+
+% --- Kod blogu icin ---
+\usepackage{listings}
+\definecolor{kodbg}{RGB}{245,245,245}
+\lstset{basicstyle=\ttfamily\footnotesize,backgroundcolor=\color{kodbg},
+  breaklines=true,frame=single,numbers=none,columns=fullflexible}
+
+% --- Placeholder makrosu (final sayilar gelince doldur) ---
+\newcommand{\PH}[1]{{\color{red}\textbf{[#1]}}}
+
+\title{\textbf{5G \& Yapay Zeka ile Akilli Yol Guvenligi\\ Final Tasarim Raporu}}
+\author{Takim Adi: \PH{takim adi} \\ Takim ID: \PH{id} \\ Basvuru ID: \PH{basvuru id}}
+\date{Haziran 2026}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+% =====================================================================
+\section{Proje Ozeti (5 Puan)}
+% =====================================================================
+Bu proje kapsaminda, yol kenari (MOBESE) ve arac-ici (in-cabin) kamera
+akislarindan yol guvenligini tehdit eden durumlari gercek zamanli tespit eden,
+\textbf{moduler ve cevrim-disi (offline) calisan} bir bilgisayarli goru sistemi
+gelistirilmistir. Sistem; arac tipi/renk/plaka tanima, surucu davranis analizi
+(telefon kullanma, su icme, esneme, yana/arkaya bakma, sigara icme, emniyet
+kemeri ihlali), yolcu konum tespiti, slalom (duzensiz surus) ve acik-kelime
+nesne tespiti (\texttt{teknocan}) olmak uzere \PH{N} farkli etiketi uretmektedir.
+
+Cozum, yarismanin Tesla T4 GPU, $<$8\,GB imaj ve 10\,dakika sure kisitlarina
+uygun olacak sekilde tasarlanmis; tum cikarim \texttt{results.json} semasina
+birebir uyumlu uretilmektedir. Sistemin ayirt edici yani, \textbf{asiri-ogrenme
+(overfitting) ve veri sizinti (data leakage) farkindaligidir}: modeller dengeli
+veri ve dogru dogrulama protokolleriyle egitilmis, gercek videolarda
+\textbf{yanlis-pozitif kontrolu} yapilarak guvenilirligi kanitlanmistir.
+
+% =====================================================================
+\section{Veri Seti Olusturulmasi (20 Puan)}
+% =====================================================================
+Yarisma komitesi ornek video disinda egitim verisi saglamadigindan, modeller
+\textbf{acik kaynakli, ticari kullanima uygun lisansli} veri setleriyle
+egitilmistir (lisanslar Kaynakca'da belirtilmistir).
+
+\subsection*{Kullanilan Veri Setleri}
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{l l c l X}
+\toprule
+\textbf{Gorev} & \textbf{Veri Seti} & \textbf{Gorsel} & \textbf{Lisans} & \textbf{Kullanim} \\
+\midrule
+Surucu davranisi & Kaggle DMS (habbas11) & 5957 & Apache 2.0 & sigara/kemer/telefon/goz \\
+Arac rengi & VCoR & $\sim$10500 & CC BY 4.0 & 15 renk siniflandirma \\
+Plaka & License Plate Recognition & 98798 & CC BY 4.0 & plaka tespiti \\
+Negatif (denge) & State Farm c0 (safe) & 2489 & yarisma & arka-plan/negatif \\
+Nesne omurgasi & COCO (YOLOv8m) & - & - & telefon/sise/laptop/insan \\
+\bottomrule
+\end{tabularx}
+\caption{Egitimde kullanilan acik kaynak veri setleri.}
+\end{table}
+
+\subsection*{Veri Dengeleme (Data Balancing) -- Kritik Tasarim Karari}
+On calismalarimizda, yalnizca pozitif ornek iceren (negatif/\,``guvenli surus''
+ornegi olmayan) veri setleriyle egitilen modellerin \textbf{``arac-ici sahne =
+ihlal'' kisayolunu ogrenerek} temiz videolarda dahi yuksek guvenle yanlis-pozitif
+urettigi tespit edilmistir (State Farm 2016 yarismasinda belgelenmis bilinen bir
+tuzak). Bu sorunu cozmek icin:
+\begin{itemize}[nosep]
+  \item Egitim setine \textbf{State Farm c0 (guvenli surus, 2489 gorsel)} ve
+        temiz surucu video kareleri \textbf{bos-etiket (background)} olarak
+        eklenmis; toplam egitim verisinin \textbf{\%31'i negatif} yapilmistir.
+  \item Boylece model ``el agizda = sigara'' gibi kisayollar yerine gercek
+        nesneyi ogrenmeye zorlanmistir.
+\end{itemize}
+
+\subsection*{Veri Artirma (Data Augmentation)}
+Model gurbuzlugu icin domain-randomization tabanli artirma uygulanmistir:
+HSV/parlaklik/kontrast jitter (gece/gunduz/IR), Mosaic, MixUp, rastgele
+donme/oteleme/olcekleme, rastgele silme (occlusion). Bu, sartnamedeki farkli
+FPS, cozunurluk ve isik kosullarina dayaniklilik gereksinimini hedefler.
+
+\subsection*{Egitim/Dogrulama/Test Ayrimi}
+\PH{train/val/test oranlari ve gerekce}. Asiri-ogrenmeyi onlemek icin
+dogrulama, egitimde gorulmeyen ornekler uzerinde yapilmis; nihai dogrulama
+\textbf{egitimde hic kullanilmayan gercek videolarla} gerceklestirilmistir.
+
+% =====================================================================
+\section{Yapay Zeka Cozumu (50 Puan)}
+% =====================================================================
+
+\subsection{Problemin Analizi (15 Puan)}
+Video uzerinden tespit yaparken karsilasilan temel problemler ve cozum
+yaklasimimiz:
+\begin{itemize}[nosep]
+  \item \textbf{Asiri-ogrenme / veri sizintisi:} Surucu veri setleri video
+        kareleridir; komsu kareler train/val'e dagilirsa dogrulama skoru
+        yaniltici sekilde sisar (\%99 gorunup gercekte \%38 olabilir). Cozum:
+        dengeli veri + gercek-video dogrulamasi.
+  \item \textbf{Kamera acisi belirsizligi:} DMS kamerasi onden veya yan (profil)
+        olabilir. Basit landmark-geometri yaw tahmini profilde basarisiz oldugundan
+        \textbf{appearance-tabanli 6DRepNet} (3B kafa pozu) + per-video referans
+        kalibrasyonuna gecilmistir.
+  \item \textbf{Isik degisimi, hareket bulanikligi, okluzyon:} domain-randomization
+        artirma + zamansal oylama (track-level voting) ile ele alinmistir.
+  \item \textbf{Yanlis-pozitif:} Zayif/ezberci modeller devre disi birakilmis,
+        guvenilir kaynaklara (dengeli COCO) oncelik verilmistir.
+\end{itemize}
+
+\subsection{Cozum Mimarisi (15 Puan)}
+Sistem, ham videodan \texttt{results.json} ciktisina kadar moduler bir hatta
+(pipeline) calisir. Her katman \textbf{izole}dir: biri hata verse dahi ana akis
+gecerli cikti uretir (sartnamedeki hata-yonetimi gereksinimi).
+
+\begin{figure}[h]
+\centering
+\fbox{\parbox{0.92\textwidth}{\centering \PH{Mimari diyagram buraya} \\[4pt]
+\footnotesize Video $\rightarrow$ kare ornekleme ($\sim$5 FPS) $\rightarrow$
+YOLOv8m (COCO) + ByteTrack izleme $\rightarrow$ track-level cogunluk oylama
+$\rightarrow$ \{Arac: tip/renk(VCoR)/plaka(YOLO+EasyOCR) $|$ Davranis:
+COCO telefon-su, MediaPipe esneme/yorgunluk, 6DRepNet bakma, sigara/kemer modeli
+$|$ Yolcu $|$ Slalom $|$ teknocan (YOLO-World)\} $\rightarrow$ tespit dedup
+$\rightarrow$ \texttt{results.json}}}
+\caption{Sistemin kusbakisi mimarisi (placeholder -- net diyagram eklenecek).}
+\end{figure}
+
+\subsection{Cozum Detaylari (20 Puan)}
+\textbf{Omurga ve izleme:} YOLOv8m (COCO on-egitimli) nesne tespiti +
+ByteTrack ile coklu-nesne takibi. Track boyunca \textbf{zamansal cogunluk
+oylamasi} tek-kare yanlis-pozitifleri eler, kacan kareleri koprular
+(precision \& recall artisi).
+
+\textbf{Arac analizi:}
+\begin{itemize}[nosep]
+  \item Tip: bbox oran sezgisi + COCO sinifi.
+  \item Renk: VCoR uzerinde egitilmis YOLOv8m-cls (15 renk $\rightarrow$ 9 etiket).
+  \item Plaka: License Plate (mAP \PH{X}) ile bbox $\rightarrow$ 4-nokta perspektif
+        duzeltme $\rightarrow$ EasyOCR (\texttt{tr}, allowlist) $\rightarrow$ TR plaka
+        regex dogrulamasi + karakter-bazli oylama.
+\end{itemize}
+
+\textbf{Surucu davranisi:}
+\begin{itemize}[nosep]
+  \item Telefon/su/bilgisayar: COCO (dengeli, milyonlarca ornek) -- en guvenilir
+        kaynak.
+  \item Esneme/yorgunluk: MediaPipe Face Mesh -- MAR (agiz) ve EAR (goz) sezgileri,
+        egitimsiz, cevrim-disi.
+  \item Yana/arkaya bakma: \textbf{6DRepNet} 3B kafa pozu + ardisik-sureklilik
+        sarti + per-video referans (kamera acisina dayanikli).
+  \item Sigara/emniyet kemeri: Kaggle DMS (Apache 2.0) uzerinde negatif-dengeli
+        fine-tune YOLOv8m.
+\end{itemize}
+
+\textbf{Slalom:} ByteTrack yorungesinden yanal salinim analizi (egitimsiz).\\
+\textbf{teknocan:} YOLO-World acik-kelime tespiti (gomulu embedding, cevrim-disi).
+
+\textbf{Donanim/Yazilim:} PyTorch + Ultralytics YOLOv8, OpenCV, MediaPipe,
+EasyOCR, 6DRepNet; Docker (\texttt{nvidia/cuda:12.1.0-base-ubuntu22.04}),
+Tesla T4. Tum agirliklar imaja gomulu -- \textbf{calisma aninda internet kapali}.
+
+% =====================================================================
+\section{Cozumun Sinanmasi (20 Puan)}
+% =====================================================================
+Modeller hem standart metriklerle hem de \textbf{egitimde gorulmeyen gercek
+videolarla} sinanmistir. ``Cozumumuze neden guveniyoruz?'' sorusunun yaniti
+asagidaki kanitlardir.
+
+\subsection*{Model Metrikleri (Dogrulama)}
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{l c c c c X}
+\toprule
+\textbf{Model} & \textbf{Precision} & \textbf{Recall} & \textbf{mAP50} & \textbf{mAP50-95} & \textbf{Not} \\
+\midrule
+sigara+kemer (DMS) & \PH{P} & \PH{R} & \PH{mAP} & \PH{mAP95} & negatif-dengeli, durust \\
+Plaka & 0.986 & 0.955 & 0.972 & 0.678 & 98K gorsel \\
+Renk (VCoR) & - & - & - & - & top1 acc \%87.7 \\
+\bottomrule
+\end{tabularx}
+\caption{Egitilen modellerin dogrulama metrikleri.}
+\end{table}
+
+\subsection*{Cevrim-Disi (Offline) Docker Testi}
+Sistem \texttt{docker run --network none} ile (internet tamamen kapali, T4)
+gercek 4K trafik videosunda calistirilmis; gecerli \texttt{results.json}
+uretilmis, cokme yasanmamistir. Imaj boyutu \textbf{4.5\,GB} ($<$8\,GB limit),
+isleme suresi T4'te 10\,dk limitinin cok altindadir.
+
+\subsection*{Gercek Video Testi -- Yanlis-Pozitif Kanitlari}
+En kritik dogrulama: temiz ve ihlalli videolarin ayirt edilmesi.
+\begin{table}[h]
+\centering
+\small
+\begin{tabularx}{\textwidth}{l X l}
+\toprule
+\textbf{Test Videosu} & \textbf{Beklenen} & \textbf{Sonuc} \\
+\midrule
+goodmax (temiz surucu) & ihlal YOK & \PH{temiz mi?} \\
+badmax (telefon/sigara/bakma) & ihlaller & \PH{yakalandi mi?} \\
+Gercek plaka videolari & plaka okuma & 03ACU808, 64EP367 (basarili) \\
+\bottomrule
+\end{tabularx}
+\caption{Gercek videolarla yanlis-pozitif ve dogru-pozitif sinamasi.}
+\end{table}
+
+\subsection*{Muhendislik Kalitesi}
+\PH{N} birim testi (TDD), izole hata-yonetimli katmanlar, JSON sema dogrulayici,
+ASCII-safe etiket garantisi, ortam-tespiti iceren manipulasyon \textbf{yok}
+(anti-cheat uyumlu).
+
+% =====================================================================
+\section{Kaynakca (5 Puan)}
+% =====================================================================
+\begin{thebibliography}{9}
+\footnotesize
+\bibitem{dms} Kaggle DMS Dataset (habbas11), Apache 2.0.
+  \url{https://www.kaggle.com/datasets/habbas11/dms-driver-monitoring-system}
+\bibitem{vcor} VCoR Vehicle Color Recognition Dataset, Kezebou et al., MDPI AI 2021, CC BY 4.0.
+\bibitem{plate} License Plate Recognition Dataset (Roboflow Universe), CC BY 4.0.
+\bibitem{statefarm} State Farm Distracted Driver Detection, Kaggle (yarisma).
+\bibitem{yolov8} Jocher et al., Ultralytics YOLOv8, 2023.
+\bibitem{bytetrack} Zhang et al., ByteTrack: Multi-Object Tracking by Associating Every Detection Box, ECCV 2022.
+\bibitem{6drepnet} Hempel et al., 6D Rotation Representation for Unconstrained Head Pose Estimation, ICIP 2022.
+\bibitem{mediapipe} Lugaresi et al., MediaPipe: A Framework for Building Perception Pipelines, 2019.
+\bibitem{yoloworld} Cheng et al., YOLO-World: Real-Time Open-Vocabulary Object Detection, CVPR 2024.
+\bibitem{easyocr} JaidedAI, EasyOCR, Apache 2.0.
+\end{thebibliography}
+
+\end{document}
