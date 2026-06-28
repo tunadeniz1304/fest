@@ -88,72 +88,33 @@ def negatif_orani(ds_root):
 print("yardimcilar hazir")
 """))
 
-cells.append(md("""## 4b. (Opsiyonel) Kaggle DMS seti analizi — habbas11 (Apache 2.0)
+cells.append(md("""## 5. ANA SET — Kaggle DMS (habbas11, Apache 2.0)
 
-Kaggle: kaggle.com/datasets/habbas11/dms-driver-monitoring-system — sigara+kemer+göz+telefon, Apache 2.0.
-Drive'a `dms-kaggle.zip` koyduysan: sınıfları + negatif oranı + formatı otomatik raporlar.
-(Negatif sınıf içeriyorsa altın değerinde — ADB'nin %0 negatif sorununu çözer.)"""))
-cells.append(code("""dms_k = cikar('dms-kaggle.zip', 'dms_kaggle')
-if dms_k:
-    # Yapiyi otomatik analiz et: YOLO mu (data.yaml) yoksa classification mi (klasor=sinif)
-    yk = yaml_bul(dms_k)
-    if yk:
-        with open(yk) as f: kcfg = yaml.safe_load(f)
-        print("YOLO-detection. Siniflar:", kcfg.get('names'))
-        no = negatif_orani(os.path.dirname(yk))
-        if no: print(f"Negatif oran: %{no[2]}")
-    else:
-        # classification: train/<sinif>/ klasor yapisi
-        alt = glob.glob(f'{dms_k}/**/train', recursive=True) or glob.glob(f'{dms_k}/*')
-        for t in alt[:1]:
-            siniflar = [os.path.basename(d) for d in glob.glob(f'{t}/*') if os.path.isdir(d)]
-            print(f"Classification gorunuyor. Siniflar: {siniflar}")
-            print(">>> 'safe'/'normal'/'no_*' iceren sinif = NEGATIF kaynagi olarak kullanilabilir")
-    print("NOT: Bu seti Claude'a raporla - notebook'a en uygun entegrasyonu o ekleyecek.")
+Kaggle: kaggle.com/datasets/habbas11/dms-driver-monitoring-system
+**YOLOv8 detection**, 5 sınıf: **Open Eye, Closed Eye, Cigarette, Phone, Seatbelt** (sahibi mAP %92 almış).
+Pipeline'da: Cigarette→sigara_icme, Seatbelt→emniyet_kemeri_ihlali, Closed Eye→yorgunluk (bonus).
+⚠️ Negatif (safe driving) sınıfı YOK → 5b'de negatif enjeksiyon ŞART (interior-ezberi önler).
+
+Drive'a `dms-kaggle.zip` adıyla koy."""))
+cells.append(code("""ds = cikar('dms-kaggle.zip', 'dms')
+yp = yaml_bul(ds) if ds else None
+if yp:
+    with open(yp) as f: cfg = yaml.safe_load(f)
+    print("Siniflar:", cfg.get('names'))
+    no = negatif_orani(os.path.dirname(yp))
+    if no: print(f"Baslangic negatif oran: %{no[2]} (enjeksiyon oncesi - dusuk normal)")
+else:
+    print("data.yaml bulunamadi - dms-kaggle.zip Drive'da mi?")
 """))
 
-cells.append(md("""## 5. SİGARA + KEMER — Abnormal Driver Behaviour (CC BY 4.0)
+cells.append(md("""### 5b. ⚠️ NEGATİF ENJEKSİYONU (kök sorun fix — eğitimden ÖNCE!)
 
-Roboflow: universe.roboflow.com/university-exrks/abnormal-driver-behaviour
-Sınıflar: Phone, Cigarette, Drinking, Seatbelt, Eating → biz Cigarette + Seatbelt kullanacağız.
-⚠️ Bu set %0 negatif → 5b'deki negatif enjeksiyon ŞART.
-
-**ÖNEMLİ:** İndirirken Roboflow'da "YOLOv8" formatı seç. Drive'a `abnormal-driver-behaviour.zip` koy."""))
-cells.append(code("""ds = cikar('abnormal-driver-behaviour.zip', 'adb')
-if ds:
-    yp = yaml_bul(ds)
-    if yp:
-        with open(yp) as f: cfg = yaml.safe_load(f)
-        print("Orijinal siniflar:", cfg.get('names'))
-        # Negatif oranini kontrol et (kok sorun buydu)
-        no = negatif_orani(os.path.dirname(yp))
-        if no: print(f"NEGATIF oran: {no[0]}/{no[1]} = %{no[2]}  (hedef >=%30)")
-        if no and no[2] < 20:
-            print("!!! UYARI: negatif orani dusuk. Kendi temiz surucu karelerinizden")
-            print("    bos-label .txt ekleyin veya goodmax2/goodmax videolarindan kare cikarin.")
-"""))
-
-cells.append(md("""### 5b. ⚠️ NEGATİF ENJEKSİYONU (kök sorun fix — eğitimden ÖNCE çalıştır!)
-
-Set %0 background (hepsi ihlalli) → model "araç içi = ihlal" ezberler, temiz videoda yanlış-pozitif.
+Set'te "safe driving" yok → model "araç içi = ihlal" ezberler, temiz videoda yanlış-pozitif.
 ÇÖZÜM: train/'e temiz sürücü görselleri **boş .txt label** ile ekle (YOLOv8 background image).
-İKİ kaynak: (A) harici temiz-sürücü zip'leri, (B) kendi temiz videolarımızdan kare.
-Hedef: toplam train'in **%30-40'ı negatif**."""))
+Kendi temiz videolarımızdan (goodmax2 vb. + Pexels) otomatik kare çıkarırız. Hedef **%30-40 negatif**."""))
 cells.append(code("""import cv2
-def negatif_ekle_klasor(kaynak_img_dir, train_root, etiket="ext"):
-    \"\"\"Bir klasordeki gorselleri bos-label ile train'e ekler (background).\"\"\"
-    if not os.path.isdir(kaynak_img_dir): return 0
-    n = 0
-    for img in glob.glob(f'{kaynak_img_dir}/**/*.jpg', recursive=True) + \\
-               glob.glob(f'{kaynak_img_dir}/**/*.png', recursive=True):
-        ad = f"neg_{etiket}_{n}"
-        shutil.copy(img, f'{train_root}/images/{ad}.jpg')
-        open(f'{train_root}/labels/{ad}.txt', 'w').close()  # BOS label = negatif
-        n += 1
-    return n
-
 def negatif_ekle_video(video_yollari, train_root, her_n_kare=20, etiket="vid"):
-    \"\"\"Temiz surucu videolarindan kare cikarip bos-label ile ekler.\"\"\"
+    \"\"\"Temiz surucu videolarindan kare cikarip bos-label ile ekler (background).\"\"\"
     n = 0
     for v in video_yollari:
         cap = cv2.VideoCapture(v); i = -1
@@ -169,32 +130,31 @@ def negatif_ekle_video(video_yollari, train_root, her_n_kare=20, etiket="vid"):
         cap.release()
     return n
 
-if ds and yp:
+if yp:
     root = os.path.dirname(yp)
     tr = f'{root}/train'
-    eklenen = 0
-    # (A) Harici temiz-surucu setleri (Drive'a koyduysan: temiz_surucu.zip)
-    ext = cikar('temiz_surucu.zip', 'temiz_surucu')
-    if ext:
-        eklenen += negatif_ekle_klasor(ext, tr, "ext")
-    # (B) Kendi temiz videolarimiz (goodmax2/goodmax/badmax2 + temiz Pexels)
+    # Temiz surucu videolari (goodmax/badmax2 + tum Pexels in-cabin)
     temiz_vids = []
-    for pat in ['geminitest*/goodmax*.mp4', 'geminitest*/badmax2.mp4', '*.mp4']:
+    for pat in ['geminitest*/goodmax*.mp4', 'geminitest*/badmax2.mp4', 'phone*.mp4', '*.mp4']:
         temiz_vids += glob.glob(f'{DRIVE}/{pat}')
-    temiz_vids = list(dict.fromkeys(temiz_vids))[:8]  # tekrar yok, max 8 video
+    temiz_vids = list(dict.fromkeys(temiz_vids))[:10]
+    # Pozitif sayisina gore negatif hedefle (~%35 olacak kadar kare)
+    poz = len(glob.glob(f'{tr}/labels/*.txt'))
+    hedef_neg = int(poz * 0.5)   # ~%33 negatif
+    her_n = 15
+    eklenen = 0
     if temiz_vids:
-        eklenen += negatif_ekle_video(temiz_vids, tr, her_n_kare=20, etiket="vid")
-    print(f"Eklenen negatif kare: {eklenen}")
+        # her_n_kare'yi hedefe gore ayarla (kaba)
+        eklenen = negatif_ekle_video(temiz_vids, tr, her_n_kare=her_n, etiket="vid")
+    print(f"Pozitif label: {poz} | eklenen negatif kare: {eklenen}")
     no = negatif_orani(root)
     if no: print(f"YENI negatif oran: {no[0]}/{no[1]} = %{no[2]}  (hedef %30-40)")
     if not no or no[2] < 25:
-        print("!!! Negatif hala dusuk - Drive'a temiz_surucu.zip ekle veya temiz video koy.")
+        print("!!! Negatif dusuk - Drive'a daha cok temiz surucu videosu koy (her_n_kare dusur).")
 """))
 
-cells.append(md("""### 5c. Sigara+kemer modelini eğit (negatif-dengeli, domain-randomization)
-
-5 sınıfla eğitilir; pipeline'da sadece Cigarette→sigara_icme, Seatbelt→emniyet_kemeri_ihlali okunur."""))
-cells.append(code("""if ds and yp:
+cells.append(md("""### 5c. Sigara+kemer modelini eğit (negatif-dengeli, domain-randomization)"""))
+cells.append(code("""if yp:
     root = os.path.dirname(yp)
     val_dir = 'valid' if os.path.isdir(f'{root}/valid/images') else 'val'
     with open(yp, 'w') as f:
