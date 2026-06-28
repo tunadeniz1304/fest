@@ -110,11 +110,25 @@ else:
 cells.append(md("""### 5b. ⚠️ NEGATİF ENJEKSİYONU (kök sorun fix — eğitimden ÖNCE!)
 
 Set'te "safe driving" yok → model "araç içi = ihlal" ezberler, temiz videoda yanlış-pozitif.
-ÇÖZÜM: train/'e temiz sürücü görselleri **boş .txt label** ile ekle (YOLOv8 background image).
-Kendi temiz videolarımızdan (goodmax2 vb. + Pexels) otomatik kare çıkarırız. Hedef **%30-40 negatif**."""))
+HARMAN: (A) **State Farm c0 = 2489 safe-driving görsel** (ana negatif, gerçek araç-içi temiz sürücü) +
+(B) kendi temiz video karelerimiz (çeşitlilik). Hepsi **boş .txt label** = YOLOv8 background.
+DMS 5957 pozitif + ~2500 c0 negatif → **~%30 negatif** (hedefte!).
+
+Drive'a `state-farm-distracted-driver-detection.zip` koy (c0 sınıfı kullanılacak)."""))
 cells.append(code("""import cv2
-def negatif_ekle_video(video_yollari, train_root, her_n_kare=20, etiket="vid"):
-    \"\"\"Temiz surucu videolarindan kare cikarip bos-label ile ekler (background).\"\"\"
+def negatif_ekle_klasor(img_yollari, train_root, etiket):
+    \"\"\"Gorsel listesini bos-label (background) olarak train'e ekler.\"\"\"
+    n = 0
+    for img in img_yollari:
+        ad = f"neg_{etiket}_{n}"
+        try:
+            shutil.copy(img, f'{train_root}/images/{ad}.jpg')
+            open(f'{train_root}/labels/{ad}.txt', 'w').close()
+            n += 1
+        except: pass
+    return n
+
+def negatif_ekle_video(video_yollari, train_root, her_n_kare=10, etiket="vid"):
     n = 0
     for v in video_yollari:
         cap = cv2.VideoCapture(v); i = -1
@@ -131,26 +145,27 @@ def negatif_ekle_video(video_yollari, train_root, her_n_kare=20, etiket="vid"):
     return n
 
 if yp:
-    root = os.path.dirname(yp)
-    tr = f'{root}/train'
-    # Temiz surucu videolari (goodmax/badmax2 + tum Pexels in-cabin)
+    root = os.path.dirname(yp); tr = f'{root}/train'
+    poz = len(glob.glob(f'{tr}/labels/*.txt'))
+    eklenen = 0
+    # (A) State Farm c0 (safe driving = 2489 temiz surucu) - ANA negatif
+    sf = cikar('state-farm-distracted-driver-detection.zip', 'statefarm_neg')
+    if sf:
+        c0 = glob.glob(f'{sf}/**/train/c0/*.jpg', recursive=True)
+        print(f"State Farm c0 (safe driving): {len(c0)} gorsel bulundu")
+        eklenen += negatif_ekle_klasor(c0, tr, "sfc0")
+    # (B) Kendi temiz videolarimiz (cesitlilik icin, her karede)
     temiz_vids = []
-    for pat in ['geminitest*/goodmax*.mp4', 'geminitest*/badmax2.mp4', 'phone*.mp4', '*.mp4']:
+    for pat in ['geminitest*/goodmax*.mp4', 'geminitest*/badmax2.mp4', '*.mp4']:
         temiz_vids += glob.glob(f'{DRIVE}/{pat}')
     temiz_vids = list(dict.fromkeys(temiz_vids))[:10]
-    # Pozitif sayisina gore negatif hedefle (~%35 olacak kadar kare)
-    poz = len(glob.glob(f'{tr}/labels/*.txt'))
-    hedef_neg = int(poz * 0.5)   # ~%33 negatif
-    her_n = 15
-    eklenen = 0
     if temiz_vids:
-        # her_n_kare'yi hedefe gore ayarla (kaba)
-        eklenen = negatif_ekle_video(temiz_vids, tr, her_n_kare=her_n, etiket="vid")
-    print(f"Pozitif label: {poz} | eklenen negatif kare: {eklenen}")
+        eklenen += negatif_ekle_video(temiz_vids, tr, her_n_kare=8, etiket="vid")
+    print(f"Pozitif: {poz} | eklenen NEGATIF: {eklenen}")
     no = negatif_orani(root)
     if no: print(f"YENI negatif oran: {no[0]}/{no[1]} = %{no[2]}  (hedef %30-40)")
     if not no or no[2] < 25:
-        print("!!! Negatif dusuk - Drive'a daha cok temiz surucu videosu koy (her_n_kare dusur).")
+        print("!!! Negatif dusuk - State Farm zip Drive'da mi? Daha cok temiz video ekle.")
 """))
 
 cells.append(md("""### 5c. Sigara+kemer modelini eğit (negatif-dengeli, domain-randomization)"""))
