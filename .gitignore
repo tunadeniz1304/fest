@@ -10,6 +10,7 @@ datasets/
 runs/
 # tum agirliklar (download_weights.py / Colab ile uretilir)
 *.pt
+*.pth
 *.mp4
 *.avi
 *.mov
