@@ -116,12 +116,17 @@ Her katman **izoledir** — ağırlık/video/hata yoksa boş liste döner ve ana
 |---|---|---|---|
 | **COCO omurga** | YOLOv8 + ByteTrack | `telefonla_konusma`, `su_icme`, `bilgisayar`, araç, `yolcular` | ✅ Aktif |
 | **DMS — kafa/ağız** | MediaPipe Face Mesh + solvePnP (3D yaw) | `esneme`, `arkaya_bakma`, `etrafa_bakinma` | ✅ Aktif |
-| **DMS — Kaggle FT** | YOLOv8m fine-tune (Apache 2.0, negatif-dengeli) | `sigara_icme`, `telefonla_konusma` | ✅ Aktif |
+| **DMS — Kaggle FT** | YOLOv8m fine-tune (Apache 2.0, negatif-dengeli) | **`sigara_icme`**, `telefonla_konusma` | ✅ Aktif |
 | **teknocan** | YOLO-World (open-vocabulary, eğitimsiz) | `teknocan` | ✅ Aktif |
 | **slalom** | ByteTrack yörünge analizi (eğitimsiz) | `slalom` | ✅ Aktif |
-| **sigara (eski)** | 0-negatif fine-tune | `sigara_icme` | ⚪ Kapalı (interior ezberi) |
+| **sigara — eski model** | 0-negatif fine-tune | (`sigara_icme`) | ⚪ Kapalı — yerini Kaggle FT aldı |
 | **State Farm** | Distracted-driver sınıflandırıcı | sürücü eylemi | ⚪ Kapalı (leakage / c9 bias) |
 | **dms_v4 actions** | fine-tune aksiyon modeli | sürücü eylemi | ⚪ Kapalı (near-dup leakage) |
+
+> **`sigara_icme` tespiti aktiftir.** Sigarayı **DMS — Kaggle FT** katmanı yakalar (negatif-dengeli,
+> gerçek videoda doğrulandı). Kapalı olan yalnızca *eski* sigara modelidir (0-negatif eğitim → interior
+> ezberi); işlevi daha sağlam olan Kaggle modeline devredilmiştir. Yani "sigara (eski) kapalı",
+> "sigara tespiti yok" anlamına gelmez.
 
 > **Neden bazı katmanlar kapalı?** Deep-research bulgularımız, bazı hazır/eğitilmiş modellerin
 > [frame-level leakage](docs/research/05_leakage-free-distraction.md) ve arka-plan ezberi nedeniyle
