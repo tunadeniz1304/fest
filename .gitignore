@@ -4,6 +4,12 @@ weights/easyocr/
 
 # Veri ve ciktilar
 data/
+# cikarilan egitim veri setleri (binlerce gorsel, turetilen)
+datasets/
+# YOLO egitim ciktilari
+runs/
+# tum agirliklar (download_weights.py / Colab ile uretilir)
+*.pt
 *.mp4
 *.avi
 *.mov
@@ -22,3 +28,6 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# YOLO-World gomulu + CLIP offline agirliklari
+weights/clip/

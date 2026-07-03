@@ -1,7 +1,17 @@
 # Calisma aninda internet KAPALI; tum paketler build'de kurulur (pin'li).
 # torch/torchvision Dockerfile'da CUDA 12.1 index'inden ayrica kurulur.
 ultralytics==8.2.103
+lapx==0.9.4
 opencv-python-headless==4.10.0.84
 easyocr==1.7.2
 numpy==1.26.4
 Pillow==10.4.0
+# YOLO-World gomulu modelini (yolo_world_teknocan.pt) deserialize etmek icin gerekir
+dill==0.3.8
+# DMS katmani (esneme/arkaya_bakma/etrafa_bakinma) - MediaPipe Face Mesh.
+# 0.10.14: solutions API + modeller pakette gomulu (offline). Yeni surumlerde
+# solutions kaldirildi ve tasks API harici .task indirme ister -> offline riski.
+mediapipe==0.10.14
+# YOLO-World (teknocan open-vocab) set_classes() icin CLIP gerekir; runtime'da
+# internet kapali oldugundan build asamasinda kurulmali.
+git+https://github.com/ultralytics/CLIP.git

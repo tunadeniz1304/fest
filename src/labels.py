@@ -52,6 +52,26 @@ def etiket_gecerli_mi(kategori, etiket):
     return kategori in KATEGORI_ETIKETLERI and etiket in KATEGORI_ETIKETLERI[kategori]
 
 
+# --- Sinif-bazli conf esikleri (kalibrasyon yerine pratik ayar) ---
+# Kucuk/zor nesneler dusuk esik (recall), buyuk/kolay nesneler yuksek esik (precision).
+VARSAYILAN_ESIK = 0.35
+SINIF_ESIK = {
+    # Kucuk/zor nesneler -> dusuk esik (recall)
+    "cell phone": 0.25,
+    "bottle": 0.25,
+    "laptop": 0.30,
+    # Buyuk/kolay nesneler -> yuksek esik (precision)
+    "car": 0.45,
+    "truck": 0.45,
+    "bus": 0.45,
+    "person": 0.40,
+}
+
+
+def esik_al(coco_label):
+    return SINIF_ESIK.get(coco_label, VARSAYILAN_ESIK)
+
+
 def validate_results(data):
     """
     results.json icerigini sartnameye gore programatik dogrular.

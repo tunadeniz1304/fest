@@ -12,6 +12,7 @@ ENV PYTHONUNBUFFERED=1
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3.10 \
         python3-pip \
+        git \
         libgl1 \
         libglib2.0-0 \
         ffmpeg \
@@ -39,6 +40,19 @@ COPY weights/ /app/weights/
 COPY src/ /app/src/
 COPY main.py .
 COPY README.md .
+
+# CLIP agirligini (YOLO-World/teknocan icin) bekledigi cache dizinine yerlestir
+# (calisma aninda internet kapali; aksi halde indirmeye calisip teknocan atlanir)
+RUN mkdir -p /root/.cache/clip && \
+    if [ -f /app/weights/clip/ViT-B-32.pt ]; then \
+        cp /app/weights/clip/ViT-B-32.pt /root/.cache/clip/; \
+    fi
+
+# EasyOCR'in bekledigi varsayilan cache dizinine de modelleri koy (offline yedek)
+RUN mkdir -p /root/.EasyOCR/model && \
+    if [ -d /app/weights/easyocr ]; then \
+        cp /app/weights/easyocr/*.pth /root/.EasyOCR/model/ 2>/dev/null || true; \
+    fi
 
 # Build aninda agirlik var mi kontrolu (yoksa build erken patlar)
 RUN test -f /app/weights/best_model.pt || (echo "HATA: /app/weights/best_model.pt yok!" && exit 1)

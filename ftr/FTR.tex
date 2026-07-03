@@ -1,0 +1,259 @@
+% =====================================================================
+% TEKNOFEST 2026 - 5G & Yapay Zeka ile Akilli Yol Guvenligi
+% FINAL TASARIM RAPORU (FTR) - IEEE tek-sutun formati
+% Overleaf: Menu -> Settings -> Compiler -> XeLaTeX (Turkce icin ZORUNLU)
+% =====================================================================
+\documentclass[onecolumn,11pt]{IEEEtran}
+
+% --- Türkçe + font (XeLaTeX) ---
+% IEEE/akademik standart font = Times. TeX Gyre Termes, Times'in acik-kaynak
+% birebir karsiligidir (her LaTeX dagitiminda var, Turkce karakter destekli).
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setdefaultlanguage{turkish}
+\setmainfont{TeX Gyre Termes}        % = Times New Roman (IEEE standardi)
+\setsansfont{TeX Gyre Heros}         % = Arial (basliklar/sans icin)
+\setmonofont{TeX Gyre Cursor}        % = Courier (kod/typewriter)
+
+% --- Tablo, görsel, link, matematik ---
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{enumitem}
+\usepackage[colorlinks=true,linkcolor=blue,urlcolor=blue,citecolor=blue]{hyperref}
+\usepackage{caption}
+
+% --- Placeholder makrosu (final sayilar gelince doldur) ---
+\newcommand{\PH}[1]{{\color{red}\textbf{[#1]}}}
+
+% --- Uzun kelime/URL satir tasmasini onle (sag kenar guvenligi) ---
+\usepackage{microtype}
+\sloppy
+\hbadness=10000
+\emergencystretch=3em
+
+\begin{document}
+
+\title{5G \& Yapay Zekâ ile Akıllı Yol Güvenliği:\\
+Çevrim-Dışı, Modüler ve Yanlış-Pozitif-Dayanıklı\\ Bir Yol Güvenliği Çıkarım Sistemi}
+
+\author{
+\IEEEauthorblockN{Takım Adı: SynchAgent}
+\IEEEauthorblockA{Takım ID: 998490 \quad Başvuru ID: 5141062\\
+TEKNOFEST 2026 -- Final Tasarım Raporu}
+}
+
+\maketitle
+
+\begin{abstract}
+Bu çalışmada, yol kenarı (MOBESE) ve araç-içi (in-cabin) kamera akışlarından
+yol güvenliğini tehdit eden durumları \textbf{çevrim-dışı (offline)} tespit eden,
+modüler bir bilgisayarlı görü sistemi sunulmaktadır. Sistem; araç tipi/renk/plaka
+tanıma, sürücü davranış analizi ve nesne/yolcu tespiti olmak üzere 13 etiket
+üretir. Çalışmanın ayırt edici katkısı, sürücü-izleme veri setlerinde yaygın olan
+\textbf{aşırı-öğrenme (overfitting) ve veri sızıntısını (data leakage)} açıkça
+ele alması; dengeli veri, doğru doğrulama protokolü ve gerçek-video tabanlı
+yanlış-pozitif analizi ile güvenilirliği kanıtlamasıdır. Sistem Tesla T4 GPU,
+$<$8\,GB imaj ve 10\,dk süre kısıtlarına uygundur.
+\end{abstract}
+
+\begin{IEEEkeywords}
+sürücü izleme sistemi, nesne tespiti, YOLOv8, aşırı-öğrenme, veri dengeleme,
+çevrim-dışı çıkarım, yol güvenliği
+\end{IEEEkeywords}
+
+% =====================================================================
+\section{Proje Özeti (5 Puan)}
+% =====================================================================
+Bu proje kapsamında, yol kenarı ve araç-içi kamera akışlarından yol güvenliğini
+tehdit eden durumları tespit eden, \textbf{modüler ve çevrim-dışı (batch)
+çalışan} bir bilgisayarlı görü sistemi geliştirilmiştir. Sistem; araç
+tipi/renk/plaka tanıma, sürücü davranış analizi (telefon kullanma, su içme,
+esneme, yana/arkaya bakma, sigara içme), yolcu konum
+tespiti, slalom ve açık-kelime nesne tespiti (\texttt{teknocan}) olmak üzere
+sürücü güvenliği etiketlerini \texttt{results.json} şemasına birebir uyumlu üretir.
+
+Tasarım, yarışmanın Tesla T4 GPU, $<$8\,GB imaj ve 10\,dakika süre kısıtlarına
+uygundur. Sistemin ayırt edici yanı \textbf{aşırı-öğrenme ve veri sızıntısı
+farkındalığıdır}: modeller dengeli veri ile eğitilmiş, gerçek videolarda
+yanlış-pozitif kontrolü yapılarak güvenilirliği kanıtlanmıştır.
+
+% =====================================================================
+\section{Veri Seti Oluşturulması (20 Puan)}
+% =====================================================================
+Komite örnek video dışında eğitim verisi sağlamadığından, modeller
+\textbf{açık kaynaklı, ticari kullanıma uygun lisanslı} veri setleriyle
+eğitilmiştir (Tablo~\ref{tab:veri}).
+
+\begin{table}[h]
+\centering
+\caption{Eğitimde kullanılan açık kaynak veri setleri.}
+\label{tab:veri}
+\small
+\begin{tabularx}{\columnwidth}{l l c l}
+\toprule
+\textbf{Görev} & \textbf{Veri Seti} & \textbf{Görsel} & \textbf{Lisans} \\
+\midrule
+Sürücü davranışı & Kaggle DMS (habbas11) & 5957 & Apache 2.0 \\
+Araç rengi & VCoR & $\sim$10500 & CC BY 4.0 \\
+Plaka & License Plate Recog. & 98798 & CC BY 4.0 \\
+Negatif (denge) & State Farm c0 & 2489 & yarışma \\
+Nesne omurgası & COCO (YOLOv8m) & -- & -- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Veri Dengeleme (Data Balancing)}
+Ön çalışmalarımızda, yalnızca pozitif örnek içeren veri setleriyle eğitilen
+modellerin \textbf{``araç-içi sahne = ihlal'' kısayolunu öğrenerek} temiz
+videolarda dahi yüksek güvenle yanlış-pozitif ürettiği tespit edilmiştir (State
+Farm 2016 yarışmasında belgelenmiş bilinen bir tuzak). Çözüm olarak eğitim setine
+\textbf{State Farm c0 (güvenli sürüş, 2489 görsel)} ve temiz sürücü video kareleri
+\textbf{boş-etiket (background)} olarak eklenmiş; toplam eğitim verisinin
+\textbf{\%31'i negatif} yapılmıştır. Böylece model gerçek nesneyi öğrenmeye
+zorlanmıştır.
+
+\subsection{Veri Artırma (Data Augmentation)}
+Model gürbüzlüğü için domain-randomization tabanlı artırma uygulanmıştır:
+HSV/parlaklık/kontrast jitter (gece/gündüz/IR), Mosaic, MixUp, rastgele
+döndürme/öteleme/ölçekleme ve rastgele silme (occlusion). Bu, şartnamedeki farklı
+FPS, çözünürlük ve ışık koşullarına dayanıklılık gereksinimini hedefler.
+
+\subsection{Eğitim/Doğrulama/Test Ayrımı}
+Kaggle DMS varsayılan train/valid ayrımı (5957/2389 görsel) kullanılmış; eğitime
+State Farm c0 ve temiz video kareleri \textbf{\%31} oranında negatif (background)
+olarak eklenmiştir. Aşırı-öğrenmeyi önlemek için nihai doğrulama
+\textbf{eğitimde hiç kullanılmayan gerçek sürücü videolarıyla} yapılmıştır.
+
+% =====================================================================
+\section{Yapay Zekâ Çözümü (50 Puan)}
+% =====================================================================
+
+\subsection{Problemin Analizi (15 Puan)}
+\begin{itemize}[nosep,leftmargin=*]
+  \item \textbf{Aşırı-öğrenme / veri sızıntısı:} Sürücü veri setleri video
+        kareleridir; komşu kareler train/val'e dağılırsa doğrulama skoru
+        yanıltıcı şekilde şişer (\%99 görünüp gerçekte \%38 olabilir). Çözüm:
+        dengeli veri + gerçek-video doğrulaması.
+  \item \textbf{Kamera açısı belirsizliği:} DMS kamerası önden veya yan olabilir.
+        \textbf{MediaPipe Face Mesh landmark + solvePnP (3B kafa-pozu geometrisi)}
+        ile yaw tahmini yapılmış; ardışık-süreklilik şartı ve eşik kalibrasyonu ile
+        yanlış-pozitifler azaltılmıştır.
+  \item \textbf{Işık değişimi, hareket bulanıklığı, oklüzyon:} domain-randomization
+        artırma + zamansal oylama (track-level voting) ile ele alınmıştır.
+  \item \textbf{Yanlış-pozitif:} Ezberci modeller devre dışı bırakılmış, güvenilir
+        dengeli kaynaklara (COCO) öncelik verilmiştir.
+\end{itemize}
+
+\subsection{Çözüm Mimarisi (15 Puan)}
+Sistem ham videodan \texttt{results.json} çıktısına kadar modüler bir hatta
+çalışır. Her katman \textbf{izole}dir: biri hata verse dahi ana akış geçerli
+çıktı üretir (şartnamedeki hata-yönetimi gereksinimi).
+
+\begin{figure}[h]
+\centering
+\fbox{\parbox{0.95\columnwidth}{\centering \textbf{Sistem Veri Akışı} \\[6pt]
+\footnotesize Video Girişi (\texttt{/app/data/input/video.mp4}) \\[2pt]
+$\downarrow$ \quad kare örnekleme ($\sim$5 FPS, FPS-bağımsız) \\[2pt]
+YOLOv8m (COCO) + ByteTrack çoklu-nesne takibi \\[2pt]
+$\downarrow$ \quad track-level çoğunluk oylama (zamansal) \\[2pt]
+\fbox{\parbox{0.9\columnwidth}{\centering Paralel Tespit Katmanları (her biri izole):\\
+Araç: tip $|$ renk (VCoR) $|$ plaka (YOLO + EasyOCR)\\
+Davranış: telefon/su (COCO) $|$ esneme/yorgunluk (MediaPipe)\\
+bakma (kafa-pozu) $|$ sigara (Kaggle DMS) $|$ slalom (yörünge)\\
+Yolcu konumu $|$ teknocan (YOLO-World)}} \\[2pt]
+$\downarrow$ \quad tespit birleştirme (dedup) \\[2pt]
+\texttt{results.json} (şartname şeması)}}
+\caption{Sistemin kuşbakışı mimarisi.}
+\label{fig:mimari}
+\end{figure}
+
+\subsection{Çözüm Detayları (20 Puan)}
+\textbf{Omurga ve izleme:} YOLOv8m (COCO) + ByteTrack çoklu-nesne takibi. Track
+boyunca zamansal çoğunluk oylaması tek-kare yanlış-pozitifleri eler, kaçan
+kareleri köprüler.
+
+\textbf{Araç analizi:} Tip (bbox oran sezgisi + COCO); renk (VCoR YOLOv8m-cls,
+15$\rightarrow$9 etiket); plaka (License Plate bbox $\rightarrow$ 4-nokta perspektif
+$\rightarrow$ EasyOCR \texttt{tr} + TR regex + karakter oylama).
+
+\textbf{Sürücü davranışı:} Telefon/su/bilgisayar COCO'dan (dengeli); esneme/yorgunluk
+MediaPipe (MAR/EAR, eğitimsiz); bakma MediaPipe landmark + solvePnP 3B poz +
+ardışık-süreklilik; sigara Kaggle DMS üzerinde negatif-dengeli fine-tune YOLOv8m.
+
+\textbf{Slalom:} ByteTrack yörüngesinden yanal salınım analizi.
+\textbf{teknocan:} YOLO-World açık-kelime (gömülü embedding, çevrim-dışı).
+
+\textbf{Altyapı:} PyTorch + Ultralytics YOLOv8, OpenCV, MediaPipe, EasyOCR,
+solvePnP; Docker (\texttt{nvidia/cuda:\allowbreak 12.1.0\allowbreak -base\allowbreak -ubuntu22.04}), Tesla T4. Tüm
+ağırlıklar imaja gömülü -- \textbf{çalışma anında internet kapalı}.
+
+% =====================================================================
+\section{Çözümün Sınanması (20 Puan)}
+% =====================================================================
+``Çözümümüze neden güveniyoruz?'' sorusunun yanıtı aşağıdaki kanıtlardır.
+
+\begin{table}[h]
+\centering
+\caption{Eğitilen modellerin doğrulama metrikleri.}
+\label{tab:metrik}
+\small
+\begin{tabularx}{\columnwidth}{l c c c X}
+\toprule
+\textbf{Model} & \textbf{P} & \textbf{R} & \textbf{mAP50} & \textbf{Not} \\
+\midrule
+sigara (DMS) & 0.902 & 0.867 & 0.911 & negatif-dengeli \\
+Plaka & 0.986 & 0.955 & 0.972 & 98K görsel \\
+Renk (VCoR) & -- & -- & -- & top1 \%87.7 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Çevrim-Dışı Docker Testi}
+Sistem \texttt{docker run --network none} ile (internet kapalı, T4) gerçek 4K
+trafik videosunda çalıştırılmış; geçerli \texttt{results.json} üretilmiş, çökme
+yaşanmamıştır. İmaj \textbf{4.5\,GB} ($<$8\,GB), süre 10\,dk limitinin altındadır.
+
+\subsection{Gerçek Video Testi -- Yanlış-Pozitif Kanıtları}
+\begin{table}[h]
+\centering
+\caption{Gerçek videolarla yanlış/doğru-pozitif sınaması.}
+\label{tab:gercek}
+\small
+\begin{tabularx}{\columnwidth}{l X l}
+\toprule
+\textbf{Video} & \textbf{Beklenen} & \textbf{Sonuç} \\
+\midrule
+goodmax (temiz) & ihlal YOK & TEMIZ (yanlis-poz. yok) \\
+sigaraicenadam & sigara icme & sigara\_icme \%77 yakalandi \\
+Gerçek plaka & okuma & 03ACU808, 64EP367 (başarılı) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Mühendislik Kalitesi}
+39 birim testi (TDD), izole hata-yönetimli katmanlar, JSON şema doğrulayıcı,
+ASCII-safe etiket garantisi, ortam-tespiti içeren manipülasyon \textbf{yok}
+(anti-cheat uyumlu).
+
+% =====================================================================
+\section{Kaynakça (5 Puan)}
+% =====================================================================
+\begin{thebibliography}{9}
+\footnotesize
+\bibitem{dms} Kaggle DMS Dataset (habbas11), Apache 2.0.
+  \url{https://www.kaggle.com/datasets/habbas11/dms-driver-monitoring-system}
+\bibitem{vcor} L. Kezebou et al., ``VCoR: Vehicle Color Recognition Dataset,'' MDPI AI, 2021. CC BY 4.0.
+\bibitem{plate} License Plate Recognition Dataset, Roboflow Universe. CC BY 4.0.
+\bibitem{statefarm} State Farm Distracted Driver Detection, Kaggle, 2016.
+\bibitem{yolov8} G. Jocher et al., ``Ultralytics YOLOv8,'' 2023.
+\bibitem{bytetrack} Y. Zhang et al., ``ByteTrack: Multi-Object Tracking by Associating Every Detection Box,'' ECCV, 2022.
+\bibitem{mediapipe} C. Lugaresi et al., ``MediaPipe: A Framework for Building Perception Pipelines,'' 2019.
+\bibitem{yoloworld} T. Cheng et al., ``YOLO-World: Real-Time Open-Vocabulary Object Detection,'' CVPR, 2024.
+\bibitem{easyocr} JaidedAI, ``EasyOCR,'' Apache 2.0.
+\end{thebibliography}
+
+\end{document}
